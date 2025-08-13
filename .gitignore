@@ -1,0 +1,16 @@
+.DS_Store
+/node_modules
+/vendor
+.idea
+.babelrc
+/.vagrant
+Homestead.json
+Homestead.yaml
+npm-debug.log
+yarn-error.log
+.env
+/.phpintel
+/public/upload/
+.phpunit.result.cache
+/public/dist/*-dev
+

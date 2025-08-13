@@ -1,0 +1,62 @@
+{
+    "name": "nirunfa/flow-process-parser",
+    "type": "project",
+    "autoload": {
+        "psr-4": {
+            "Nirunfa\\FlowProcessParser\\": "src/"
+        },
+        "files": [
+            "src/helpers.php"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Tests\\": "tests/"
+        }
+    },
+    "authors": [
+        {
+            "name": "nirunfa"
+        }
+    ],
+    "scripts": {
+        "post-install-cmd": [
+            "echo 'composer install 完成，开始执行后续操作...'",
+            "cp -f vendor/nirunfa/flow-process-parser/src/database/migrations/* database/migrations/process-parser/*",
+            "cp -f vendor/nirunfa/flow-process-parser/src/config/* config/*"
+        ]
+    },
+    "minimum-stability": "dev",
+    "require": {
+        "php": ">=7.3"
+    },
+    "require-dev": {
+        "ext-json": "*",
+        "laravel/framework": "^8.65",
+        "laravel/helpers": "^1.4",
+        "laravel/sanctum": "^2.11",
+        "laravel/socialite": "^5.6",
+        "laravel/tinker": "^2.5",
+        "elendev/composer-push": "^1.0",
+        "phpunit/phpunit": "9.6.x-dev"
+    },
+    "config": {
+        "allow-plugins": {
+            "elendev/composer-push": true
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Nirunfa\\FlowProcessParser\\FlowProcessParserServiceProvider"
+            ]
+        }
+    },
+    "repositories": {
+        "packagist": {
+            "type": "composer",
+            "url": "http://mvn.dev.huangyebl.com/repository/composer-public"
+        }
+    },
+    "version": "0.0.0.1"
+}
