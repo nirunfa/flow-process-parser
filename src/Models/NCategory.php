@@ -9,6 +9,15 @@ class NCategory extends BaseModel
     const STATUS_ENABLE = 1;
     const STATUS_DISABLE = 0;
 
+    public function getTable()
+    {
+        $table = config('process_parser.db.tables.category','');
+        if(!empty($table)){
+            return $table;
+        }
+        return parent::getTable();
+    }
+
     public function parent(){
         return $this->belongsTo(NCategory::class,'pid');
     }

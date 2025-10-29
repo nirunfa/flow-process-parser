@@ -17,10 +17,10 @@ class CreateFppProcessVariablesTable extends Migration
         $this->initConfig();
         Schema::create($this->dbPrefix.'process_variables', function (Blueprint $table) {
             $table->id();
-            $table->bigInteger('instance_id')->comment('流程实例 id ');
-            $table->bigInteger('task_id')->comment('流程实例任务 id ');
+            $table->bigInteger('instance_id')->nullable()->comment('流程实例 id ');
+            $table->bigInteger('task_id')->nullable()->comment('流程实例任务 id ');
             $table->string('name')->comment('变量名称 ');
-            $table->string('value')->comment('变量值 ');
+            $table->string('value')->nullable()->comment('变量值 ');
             $table->string('type',80)->default('string')->comment('变量类型 ');
             $table->timestamps();
         });

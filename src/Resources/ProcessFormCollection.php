@@ -4,7 +4,7 @@ namespace Nirunfa\FlowProcessParser\Resources;
 
 use Illuminate\Http\Resources\Json\ResourceCollection;
 
-class ProcessDefinitionCollection extends ResourceCollection
+class ProcessFormCollection extends ResourceCollection
 {
     /**
      * Transform the resource collection into an array.

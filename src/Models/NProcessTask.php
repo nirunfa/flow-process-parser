@@ -24,21 +24,27 @@ class NProcessTask extends BaseModel
 
     public function instance(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
-        return $this->belongsTo(NProcessInstance::class);
+        return $this->belongsTo(NProcessInstance::class,'instance_id');
     }
 
     public function assignees(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
-        return $this->hasMany(NProcessTaskAssignee::class);
+        return $this->hasMany(NProcessTaskAssignee::class,'task_id','id');
     }
 
     public function node(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
-        return $this->belongsTo(NProcessNode::class);
+        return $this->belongsTo(NProcessNode::class,'node_id');
     }
 
     public function variables(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
-        return $this->hasMany(NProcessVariable::class);
+        return $this->hasMany(NProcessVariable::class,'task_id','id');
     }
+
+    public function comments(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(NProcessComment::class,'task_id','id');
+    }
+
 }

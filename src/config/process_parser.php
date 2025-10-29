@@ -1,4 +1,10 @@
 <?php
+
+/**
+ *  ---------------流程解析器配置---------------
+ *
+ *
+ */
 return [
     /**
      * 数据库相关配置
@@ -12,7 +18,7 @@ return [
             'group'=>'',
             'category'=>'',
             'form'=>'',
-            'definition'=>'',
+            'design'=>'',
             'instance'=>'',
             'task'=>'',
             'task_assignee'=>'',
@@ -22,7 +28,8 @@ return [
      * 模型相关配置
      */
     'models'=>[
-        'user'=>''
+        'user'=>null,
+        'form'=>null,
     ],
     /**
      * 流程版本起始号，整数
@@ -34,5 +41,12 @@ return [
     'json_parser'=>[
         'use_queue'=>false,/*是否使用异步队列,默认不启用*/
         'queue_name'=>'process_parser',/* 异步队列所在组，对应 ->onQueue()方法的参数； 不填写或者为空则为拓展默认的 */
-    ]
+    ],
+    /*
+     * 路由相关配置
+     * */
+    'route'=>[
+        'prefix'=>'/api',//初始有一个前缀 n_process, 若设置 prefix，则前缀为 设置值 + /n_process, 默认值为 /api
+        'middleware'=>[],
+    ],
 ];

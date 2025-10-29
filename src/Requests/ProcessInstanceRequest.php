@@ -28,7 +28,7 @@ class ProcessInstanceRequest extends FormRequest
                     NProcessInstance::STATUS_ABANDONED,
                 ])
             ],
-            'is_archive' => [
+            'is_archived' => [
                 Rule::in ([
                     NProcessInstance::IS_ARCHIVE_NO,
                     NProcessInstance::IS_ARCHIVE_YES,
@@ -52,7 +52,7 @@ class ProcessInstanceRequest extends FormRequest
                             NProcessInstance::STATUS_ABANDONED,
                         ])
                     ],
-                    'is_archive' => [
+                    'is_archived' => [
                         Rule::in ([
                             NProcessInstance::IS_ARCHIVE_NO,
                             NProcessInstance::IS_ARCHIVE_YES,

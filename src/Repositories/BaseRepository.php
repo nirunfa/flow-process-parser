@@ -60,7 +60,7 @@ class BaseRepository
         return \collect([]);
     }
 
-    public static function buildQuery(Builder $query, array $condition){
+    public static function buildQuery($query, array $condition){
         if(!empty($conditions)){
             foreach ($conditions as $key => $value){
                 $query->where($key,$value['operator'] ?? '=' ,$value['value'] ?? $value);

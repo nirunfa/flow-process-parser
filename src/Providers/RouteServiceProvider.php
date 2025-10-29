@@ -18,6 +18,8 @@ class RouteServiceProvider extends ServiceProvider
      */
     protected $moduleNameLower = 'n_process';
 
+    protected $middleware = [];
+
     protected $path;
 
     /**
@@ -31,12 +33,19 @@ class RouteServiceProvider extends ServiceProvider
         parent::__construct ($app);
 
         $this->initRoute ();
-
     }
 
     protected function initRoute ()
     {
         $this->path = __DIR__ . '/../routes';
+
+        //路由相关配置
+        $routeConfig = config('process_parser.route');
+        $this->moduleNameLower = $routeConfig['prefix'] ?? null;
+        if(empty($this->moduleNameLower)) {
+            $this->moduleNameLower =  '/api';
+        }
+        $this->middleware = $routeConfig['middleware'] ?? [];
     }
 
     protected function getPath ($name = null)
@@ -64,7 +73,11 @@ class RouteServiceProvider extends ServiceProvider
     protected function mapApiRoutes ()
     {
         Route::prefix ($this->moduleNameLower)
-            ->middleware ($this->moduleNameLower)
-            ->group ($this->getPath ('nProcess'));
+            ->middleware ($this->middleware)
+            ->group($this->getPath ('nProcess'));
+
+            Route::prefix ($this->moduleNameLower)
+                ->middleware ([])
+                ->group($this->getPath ('nCommon'));
     }
 }

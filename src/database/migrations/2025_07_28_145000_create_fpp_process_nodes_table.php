@@ -22,10 +22,14 @@ class CreateFppProcessNodesTable extends Migration
             $table->string('n_uuid')->comment('结点uuid ');
             $table->tinyInteger('type')->default(0)->comment('结点类型 ');
             $table->integer('ver')->default('0')->comment('版本号 ');
-            $table->bigInteger('definition_id')->comment($this->dbPrefix.'process_definitions表 id ');
+            $table->bigInteger('design_id')->comment($this->dbPrefix.'process_designs表 id ');
             $table->bigInteger('form_id')->default(0)->comment($this->dbPrefix.'process_forms表 id ');
             $table->bigInteger('prev_node_id')->nullable()->comment('上一个处理结点 id ');
             $table->string('prev_node_uuid')->nullable()->comment('上一个处理结点 uuid ');
+            $table->bigInteger('next_node_id')->nullable()->comment('下一个处理结点 id ');
+            $table->string('next_node_uuid')->nullable()->comment('下一个处理结点 uuid ');
+
+            $table->tinyInteger('is_branch_child')->default(0)->comment('用于分支节点非直接条件的标识 ');
 
             $table->string('description')->nullable()->comment('描述、说明 ');
             $table->tinyInteger('status')->default(1)->comment('状态 0禁用 1启用 ');

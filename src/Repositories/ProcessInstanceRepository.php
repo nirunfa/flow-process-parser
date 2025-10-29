@@ -3,7 +3,7 @@ namespace Nirunfa\FlowProcessParser\Repositories;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Arr;
-use Nirunfa\FlowProcessParser\Models\NProcessDefinition;
+use Nirunfa\FlowProcessParser\Models\NProcessDesign;
 use Nirunfa\FlowProcessParser\Models\NProcessInstance;
 
 class ProcessInstanceRepository extends BaseRepository
@@ -15,14 +15,14 @@ class ProcessInstanceRepository extends BaseRepository
 
     public static function getList($perPage, $condition = [], $keyword = null)
     {
-        return static::buildQueryObj()->with(['definition'])
+        return static::buildQueryObj()->with(['design'])
             ->where(function (Builder $query) use (&$condition, $keyword) {
-                if (Arr::has($condition, 'definition_id')) {
-                    $definition_id = Arr::get($condition, 'definition_id', []);
-                    if (!empty($definition_id)) {
-                        $query->whereIn('id', $definition_id);
+                if (Arr::has($condition, 'design_id')) {
+                    $design_id = Arr::get($condition, 'design_id', []);
+                    if (!empty($design_id)) {
+                        $query->whereIn('id', $design_id);
                     }
-                    unset($condition['definition_id']);
+                    unset($condition['design_id']);
                 }
             })
             ->where(function ($query) use ($condition, $keyword) {
@@ -53,12 +53,11 @@ class ProcessInstanceRepository extends BaseRepository
 
     public static function findWithRelations($id)
     {
-        return static::buildQueryObj()->with(['tasks','definition'])->find($id);
+        return static::buildQueryObj()->with(['tasks','design'])->find($id);
     }
 
     public static function delete($id)
     {
-        return NProcessDefinition::destroy($id);
+        return NProcessDesign::destroy($id);
     }
 }
-

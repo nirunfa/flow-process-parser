@@ -41,16 +41,33 @@
         "phpunit/phpunit": "9.6.x-dev"
     },
     "config": {
+        "secure-http": false,
         "allow-plugins": {
             "elendev/composer-push": true
         }
     },
     "extra": {
-        "laravel": {
-            "providers": [
-                "Nirunfa\\FlowProcessParser\\FlowProcessParserServiceProvider"
+        "push": {
+            "url": "http://mvn.dev.huangyebl.com/repository/composer-hosted",
+            "type": "nexus",
+            "ignore-by-git-attributes": true,
+            "ignore": [
+                "test.php",
+                "/.env$/",
+                ".idea/",
+                "composer-push.json",
+                "foo/",
+                "node_modules/",
+                "vendor/",
+                "bootstrap/cache/*.php",
+                "public/dist/module-flowable-dev/"
             ]
         }
+    },
+    "laravel": {
+        "providers": [
+            "Nirunfa\\FlowProcessParser\\FlowProcessParserServiceProvider"
+        ]
     },
     "repositories": {
         "packagist": {
@@ -58,5 +75,5 @@
             "url": "http://mvn.dev.huangyebl.com/repository/composer-public"
         }
     },
-    "version": "0.0.0.1"
+    "version": "dev-main"
 }

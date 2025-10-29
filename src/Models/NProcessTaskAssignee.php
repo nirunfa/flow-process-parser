@@ -6,6 +6,8 @@ class NProcessTaskAssignee extends BaseModel
 {
     protected $guarded = [];
 
+    public $timestamps = false;
+
     public function getTable()
     {
         $table = config('process_parser.db.tables.task_assignee','');
@@ -17,11 +19,11 @@ class NProcessTaskAssignee extends BaseModel
 
     public function task(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
-        return $this->belongsTo(NProcessTask::class);
+        return $this->belongsTo(NProcessTask::class,'task_id');
     }
     public function nodeApprover(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
-        return $this->belongsTo(NProcessNodeApprover::class,'node_approver_id','uuid');
+        return $this->belongsTo(NProcessNodeApprover::class,'node_approver_id','id');
     }
 
     public function assignee(): \Illuminate\Database\Eloquent\Relations\BelongsTo

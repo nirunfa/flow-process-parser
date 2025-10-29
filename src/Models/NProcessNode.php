@@ -26,6 +26,9 @@ class NProcessNode extends BaseModel
     const TYPE_PARALLEL_FINISH = 11;
     const TYPE_NOTIFY = 12;
 
+    const ENABLE_BRANCH_CHILD = 1;
+    const DISABLE_BRANCH_CHILD = 0;
+
     /**
      * @return \Illuminate\Database\Eloquent\Relations\HasMany
      */
@@ -39,7 +42,7 @@ class NProcessNode extends BaseModel
      */
     public function form(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
-        return $this->hasOne(NProcessForm::class, 'id', 'form_id');
+        return $this->hasOne(config('process_parser.models.form',NProcessForm::class), 'id', 'form_id');
     }
 
     public function approvers(): \Illuminate\Database\Eloquent\Relations\HasMany
@@ -56,13 +59,19 @@ class NProcessNode extends BaseModel
         return $this->hasOne(NProcessNodeAttr::class,'node_id');
     }
 
-    public function definition(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function design(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
-        return $this->belongsTo(NProcessDefinition::class,'node_id');
+        return $this->belongsTo(NProcessDesign::class,'node_id');
     }
 
     public function nextNodes(): \Illuminate\Database\Eloquent\Relations\hasMany
     {
-        return $this->hasMany(NProcessNode::class, 'prev_node_id', 'id');
+        return $this->hasMany(NProcessNode::class, 'id','next_node_id');
     }
+
+    public function branchNextNodes(): \Illuminate\Database\Eloquent\Relations\hasMany
+    {
+        return $this->hasMany(NProcessNode::class,'prev_node_id','id');
+    }
+
 }

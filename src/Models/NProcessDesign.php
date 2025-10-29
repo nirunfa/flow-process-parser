@@ -2,7 +2,7 @@
 
 namespace Nirunfa\FlowProcessParser\Models;
 
-class NProcessDefinition extends BaseModel
+class NProcessDesign extends BaseModel
 {
     const STATUS_ENABLE = 1;
     const STATUS_DISABLE = 0;
@@ -11,7 +11,7 @@ class NProcessDefinition extends BaseModel
 
     public function getTable()
     {
-        $table = config('process_parser.db.tables.definition','');
+        $table = config('process_parser.db.tables.design','');
         if(!empty($table)){
             return $table;
         }
@@ -35,6 +35,6 @@ class NProcessDefinition extends BaseModel
 
     public function versions(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
-        return $this->hasMany(NProcessDefinitionVersion::class,'definition_id');
+        return $this->hasMany(NProcessDesignVersion::class,'design_id');
     }
 }

@@ -34,12 +34,12 @@ class NProcessInstance extends BaseModel
 
     public function tasks(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
-        return $this->hasMany(NProcessTask::class);
+        return $this->hasMany(NProcessTask::class,'instance_id','id');
     }
 
-    public function definition(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    public function design(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
-        return $this->belongsTo(NProcessDefinition::class);
+        return $this->belongsTo(NProcessDesign::class,'design_id','id');
     }
 
     public function applier(): \Illuminate\Database\Eloquent\Relations\BelongsTo
@@ -49,7 +49,7 @@ class NProcessInstance extends BaseModel
 
     public function variables(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
-        return $this->hasMany(NProcessVariable::class);
+        return $this->hasMany(NProcessVariable::class,'instance_id','id');
     }
 
     public function setStart(): NProcessInstance
@@ -67,9 +67,33 @@ class NProcessInstance extends BaseModel
         return $this;
     }
 
+    public function setAbandoned(): NProcessInstance
+    {
+        $this->status = self::STATUS_ABANDONED;
+        $this->end_time = now();
+        $this->duration = $this->end_time->diffInSeconds($this->start_time);
+        return $this;
+    }
+
     public function setArchived(): NProcessInstance
     {
         $this->is_archived = self::IS_ARCHIVE_YES;
         return $this;
     }
+
+    public function isCompleted(): bool
+    {
+        return $this->status === self::STATUS_COMPLETED;
+    }
+
+    public function isCanRemove(): bool
+    {
+        return $this->status !== self::STATUS_COMPLETED && $this->status !== self::STATUS_ABANDONED;
+    }
+
+    public function comments(): \Illuminate\Database\Eloquent\Relations\HasMany
+    {
+        return $this->hasMany(NProcessComment::class,'instance_id','id');
+    }
+
 }

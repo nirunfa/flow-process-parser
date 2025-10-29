@@ -1,6 +1,5 @@
 <?php
 
-
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Str;
 
@@ -15,24 +14,36 @@ use Illuminate\Support\Str;
 |
 */
 
+//路由相关配置
+$routeConfig = config("process_parser.route");
+
 Route::group(
     [
-        'as' => 'processParser::',
-        'prefix' => 'n_process',
+        "as" => "processParser::",
     ],
     function () {
-        Route::put('/process_definitions/{id}/design',[\Nirunfa\FlowProcessParser\Controllers\ProcessDefinitionController::class, 'saveDesign'])
-            ->name('process_definitions.store.design');
-        Route::apiResources(['process_definitions' => \Nirunfa\FlowProcessParser\Controllers\ProcessDefinitionController::class]);
-        Route::apiResources(['groups' => \Nirunfa\FlowProcessParser\Controllers\GroupController::class]);
-        Route::apiResources(['categories' => \Nirunfa\FlowProcessParser\Controllers\CategoryController::class]);
-
-        //data数据
-        Route::get('definition_data' , [\Nirunfa\FlowProcessParser\Controllers\DataController::class,'definition'])->name('definition.data');
-        Route::get('cate_data' , [\Nirunfa\FlowProcessParser\Controllers\DataController::class,'category'])->name('category.data');
-        Route::get('group_data' , [\Nirunfa\FlowProcessParser\Controllers\DataController::class,'group'])->name('group.data');
-
-    });
-
-
-
+        Route::group(
+            [
+                "prefix" => "n_process",
+            ],
+            function () {
+                Route::post("/process_designs/{id}/design", [
+                    \Nirunfa\FlowProcessParser\Controllers\ProcessDesignController::class,
+                    "saveDesign",
+                ])->name("process_designs.store.design");
+                Route::apiResources([
+                    "process_designs" =>
+                        \Nirunfa\FlowProcessParser\Controllers\ProcessDesignController::class,
+                ]);
+                Route::apiResources([
+                    "groups" =>
+                        \Nirunfa\FlowProcessParser\Controllers\GroupController::class,
+                ]);
+                Route::apiResources([
+                    "categories" =>
+                        \Nirunfa\FlowProcessParser\Controllers\CategoryController::class,
+                ]);
+            },
+        );
+    },
+);

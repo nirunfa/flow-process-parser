@@ -16,9 +16,12 @@ class CreateFppProcessNodeApproversTable extends Migration
     public function up()
     {
         $this->initConfig();
-        Schema::create($this->dbPrefix.'process_node_approvers', function (Blueprint $table) {
-            $table->string('id')->comment('审批（处理）人uuid ');
+        Schema::create($this->dbPrefix . 'process_node_approvers', function (Blueprint $table) {
+            $table->id();
+            $table->string('uuid')->comment('审批（处理）人uuid ');
             $table->bigInteger('node_id')->comment('流程节点 process_nodes表 id ');
+            $table->tinyInteger('level_mode')->nullable()->comment('审批（处理）人层级 ');
+            $table->unsignedTinyInteger('loop_count')->default(0)->comment('审批（处理）人层级检索层次,0 不限制，1 表示检索一层,依此类推 ');
             $table->tinyInteger('approver_type')->comment('审批（处理）人类型 ');
             $table->tinyInteger('approve_direct')->comment('审批人检索方向 ');
             $table->string('approver_ids')->comment('审批人标识符号或者表达式等 ');
@@ -26,7 +29,7 @@ class CreateFppProcessNodeApproversTable extends Migration
             $table->integer('order_sort')->default(0)->comment('审批人检索排序数值 ');
             $table->timestamps();
 
-            $table->primary(['id', 'node_id']);
+            $table->unique(['uuid', 'node_id']);
         });
     }
 

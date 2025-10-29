@@ -1,7 +1,7 @@
 <?php
 
-if(function_exists('getCode')){
+if(!function_exists('getCode')){
     function getCode(){
-        return date('YmdHis').rand(1000,9999);
+        return 'NF'.date('YmdHis').rand(1000,9999);
     }
 }

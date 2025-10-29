@@ -20,9 +20,9 @@ class ProcessInstanceResource extends JsonResource
             'ver'               => $this->ver,
             'code'               => $this->code,
             'status'               => $this->status,
-            'is_archive'               => $this->is_archive,
-            'definition'                  => $this->when($this->definition_id > 0, $this->whenLoaded('definition', function () {
-                return new ProcessDefinitionResource($this->definition);
+            'is_archived'               => $this->is_archived,
+            'design'                  => $this->when($this->design_id > 0, $this->whenLoaded('design', function () {
+                return new ProcessDesignResource($this->design);
             })),
 
             'applier_id'               => $this->initiator_id,

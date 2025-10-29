@@ -4,7 +4,7 @@ namespace Nirunfa\FlowProcessParser\Models;
 
 use Nirunfa\FlowProcessParser\Models\BaseModel;
 
-class NProcessDefinitionVersion extends BaseModel
+class NProcessDesignVersion extends BaseModel
 {
     protected $guarded = [];
 
