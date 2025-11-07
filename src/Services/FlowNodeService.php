@@ -272,7 +272,7 @@ class FlowNodeService
         || ($towards === NProcessNodeAttr::FALSE_DOWN_SKIP && !$groupSumFlag) )
         {
             if(isset($node['childNode'])){
-                $node = $node['childNode'];
+            $node = $node['childNode'];
             }else{
                 return 1;
             }

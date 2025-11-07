@@ -26,6 +26,22 @@ class JsonNodeParserJob implements ShouldQueue
 
     private $designId = 0;
     private $ver = 0;
+    
+    /**
+     * 批量更新 next_node_id 的队列
+     * [node_id => [next_node_id, next_node_uuid]]
+     */
+    private $nextNodeUpdates = [];
+    
+    /**
+     * 批量保存的关联数据队列
+     */
+    private $relationDataQueue = [];
+    
+    /**
+     * 表单缓存，避免重复查询
+     */
+    private $formCache = [];
 
 
     public function __construct($designId, $ver)
@@ -62,6 +78,12 @@ class JsonNodeParserJob implements ShouldQueue
 
 
                 $this->combineChildNode($orgNodeData, null, '');
+                
+                // 批量保存关联数据
+                $this->flushRelationData();
+                
+                // 批量更新 next_node_id
+                $this->flushNextNodeUpdates();
 
                 //查询分支 node
                 $branchNodes = NProcessNode::query()
@@ -69,33 +91,23 @@ class JsonNodeParserJob implements ShouldQueue
                         $query->where('is_branch_child', NProcessNode::ENABLE_BRANCH_CHILD);
                     }])
                     ->where('type', NProcessNode::TYPE_BRANCH)
-                    ->get();
+                    ->where("design_id", $this->designId)
+                    ->where("ver", $this->ver)
+                    ->get()
+                    ->keyBy('id');
+                    
                 //更新 next_node_id 和 next_node_uuid 的映射关系
                 $nullNextNodeNodes = NProcessNode::query()
-                    ->where('next_node_id', 0)
-                    ->orWhereNull('next_node_id')
+                    ->where("design_id", $this->designId)
+                    ->where("ver", $this->ver)
+                    ->where(function($query){
+                        $query->where('next_node_id', 0)
+                              ->orWhereNull('next_node_id');
+                    })
                     ->get();
-                foreach($nullNextNodeNodes as $nullNextNodeNode){
-                    $nPath = $nullNextNodeNode->n_path;
-                    $nPaths = Arr::where(explode('>', $nPath), function($value){
-                        return mb_strpos($value, '-') !== false;
-                    });
-                    $nPaths = array_reverse($nPaths);
-                    foreach($nPaths as $nPath){
-                        $branchId = explode('-', $nPath)[0];
-                        $branchNodeFind = $branchNodes->firstWhere('id', $branchId);
-                        if($branchNodeFind){
-                            $branchChildNodes = $branchNodeFind->branchNextNodes;
-                            if($branchChildNodes->isNotEmpty()){
-                                $nullNextNodeNode->update([
-                                    'next_node_id' => $branchChildNodes->first()->id,
-                                    'next_node_uuid' => $branchChildNodes->first()->n_uuid,
-                                ]);
-                                break;
-                            }
-                        }
-                    }
-                }
+                    
+                // 批量更新 null 节点
+                $this->batchUpdateNullNodes($nullNextNodeNodes, $branchNodes);
         
             });
         } else {
@@ -199,7 +211,7 @@ class JsonNodeParserJob implements ShouldQueue
             "prev_node_id" => $preProcessNode->id ?? null,
             "prev_node_uuid" => $orgNodeData["pid"] ?? null,
             'is_branch_child' => $isBranchChild ?? false,
-            'n_path' => trim($path,'-'),
+            'n_path' => $path,
         ];
 
         if (
@@ -223,11 +235,19 @@ class JsonNodeParserJob implements ShouldQueue
                 "{$orgNodeData["name"]}-{$curDateTime}-{$this->ver}";
 
             if ($isNewForm) {
-                //新表单
-                $formInfo = NProcessForm::find($chooseFormId);
+                //新表单 - 使用缓存避免重复查询
+                if (!isset($this->formCache[$chooseFormId])) {
+                    $formInfo = NProcessForm::find($chooseFormId);
+                    $this->formCache[$chooseFormId] = $formInfo;
+                } else {
+                    $formInfo = $this->formCache[$chooseFormId];
+                }
+                
                 if (!empty($formInfo)) {
-                    $fieldArray = json_decode($formInfo["fields"], true);
-                    array_push($fieldArray, ...json_decode($formFields, true));
+                    $fieldArray = json_decode($formInfo["fields"], true) ?: [];
+                    $newFields = json_decode($formFields, true) ?: [];
+                    $fieldArray = array_merge($fieldArray, $newFields);
+                    
                     $newFormInfo = $formInfo->replicate()->fill([
                         "name" => $formName,
                         "fields" => json_encode($fieldArray),
@@ -245,33 +265,39 @@ class JsonNodeParserJob implements ShouldQueue
 
         //创建 node
         $processNode = NProcessNode::query()->create($initNode);
+        
+        // 延迟更新前一个节点的 next_node_id
         if(isset($preProcessNode)){
-            $preProcessNode->update([
-                "next_node_id" => $processNode->id,
-                "next_node_uuid" => $processNode->n_uuid,
-            ]);
-        }
-        if(!$path || strlen($path) === 0){
-            $path = $processNode->id;
-        }else{
-            $path = $path .'>'. $processNode->id;
+            $this->nextNodeUpdates[$preProcessNode->id] = [
+                'next_node_id' => $processNode->id,
+                'next_node_uuid' => $processNode->n_uuid,
+            ];
         }
         
-        $path = str_replace('->', '-', $path);
+        // 优化路径拼接：直接拼接，避免重复替换
+        $path = empty($path) ? (string)$processNode->id : $path . '>' . $processNode->id;
 
-        //保存相关配置等信息
-        //attr属性
+        // 延迟保存关联数据，批量处理
         if (!empty($nodeAttr)) {
-            $processNode->attr()->save(new NProcessNodeAttr($nodeAttr));
+            $this->relationDataQueue[] = [
+                'type' => 'attr',
+                'node_id' => $processNode->id,
+                'data' => $nodeAttr,
+            ];
         }
-        //条件
-        if (count($conditions) > 0) {
-            $processNode->conditions()->saveMany($conditions);
+        if (!empty($conditions)) {
+            $this->relationDataQueue[] = [
+                'type' => 'conditions',
+                'node_id' => $processNode->id,
+                'data' => $conditions,
+            ];
         }
-        //审批人｜处理人
-        if (count($approverDatas) > 0) {
-            // dump(Arr::flatten($approverDatas));
-            $processNode->approvers()->saveMany($approverDatas);
+        if (!empty($approverDatas)) {
+            $this->relationDataQueue[] = [
+                'type' => 'approvers',
+                'node_id' => $processNode->id,
+                'data' => $approverDatas,
+            ];
         }
 
         //非条件子节点
@@ -284,8 +310,218 @@ class JsonNodeParserJob implements ShouldQueue
         $conditionNodes = $orgNodeData["conditionNode"] ?? ($orgNodeData["conditionNodes"] ?? []);
         if (!empty($conditionNodes)) {
             foreach ($conditionNodes as $conditionNode) {
-                $this->combineChildNode($conditionNode, $processNode, $path.'-');
+                // 条件分支路径：添加分支标记
+                $this->combineChildNode($conditionNode, $processNode, $path . '-' . $processNode->id);
             }
+        }
+    }
+    
+    /**
+     * 批量保存关联数据
+     */
+    private function flushRelationData()
+    {
+        if (empty($this->relationDataQueue)) {
+            return;
+        }
+        
+        // 按类型分组，批量插入
+        $attrData = [];
+        $conditionData = [];
+        $approverData = [];
+        
+        // 定义允许的 attr 字段（按表结构，排除 timestamps）
+        $allowedAttrFields = [
+            'towards',
+            'condition_type',
+            'approve_type',
+            'approve_mode',
+            'approver_same_initiator',
+            'approver_same_prev',
+            'approver_empty',
+        ];
+        
+        foreach ($this->relationDataQueue as $item) {
+            $nodeId = $item['node_id'];
+            $data = $item['data'];
+            
+            switch ($item['type']) {
+                case 'attr':
+                    // 只保留允许的字段
+                    $filteredData = ['node_id' => $nodeId];
+                    foreach ($allowedAttrFields as $field) {
+                        if (isset($data[$field])) {
+                            $filteredData[$field] = $data[$field];
+                        }
+                    }
+                    $attrData[] = $filteredData;
+                    break;
+                case 'conditions':
+                    foreach ($data as $condition) {
+                        // 获取模型的原始属性（排除 timestamps 和 id）
+                        $attributes = $condition->getAttributes();
+                        unset($attributes['id'], $attributes['created_at'], $attributes['updated_at'], $attributes['node_id']);
+                        $conditionData[] = array_merge($attributes, ['node_id' => $nodeId]);
+                    }
+                    break;
+                case 'approvers':
+                    foreach ($data as $approver) {
+                        // 获取模型的原始属性（排除 timestamps 和 id）
+                        $attributes = $approver->getAttributes();
+                        unset($attributes['id'], $attributes['created_at'], $attributes['updated_at'], $attributes['node_id']);
+                        $approverData[] = array_merge($attributes, ['node_id' => $nodeId]);
+                    }
+                    break;
+            }
+        }
+        
+        // 批量插入
+        if (!empty($attrData)) {
+            // 使用固定的字段列表，确保所有行字段一致
+            $fixedFields = [
+                'node_id',
+                'towards',
+                'condition_type',
+                'approve_type',
+                'approve_mode',
+                'approver_same_initiator',
+                'approver_same_prev',
+                'approver_empty',
+            ];
+            
+            // 标准化所有行，确保字段顺序和数量一致
+            $normalizedAttrData = [];
+            foreach ($attrData as $row) {
+                $normalizedRow = [];
+                foreach ($fixedFields as $field) {
+                    $normalizedRow[$field] = $row[$field] ?? null;
+                }
+                $normalizedAttrData[] = $normalizedRow;
+            }
+            
+            DB::table((new NProcessNodeAttr())->getTable())->insert($normalizedAttrData);
+        }
+        if (!empty($conditionData)) {
+            DB::table((new NProcessNodeCondition())->getTable())->insert($conditionData);
+        }
+        if (!empty($approverData)) {
+            DB::table((new NProcessNodeApprover())->getTable())->insert($approverData);
+        }
+        
+        // 清空队列
+        $this->relationDataQueue = [];
+    }
+    
+    /**
+     * 批量更新 next_node_id
+     */
+    private function flushNextNodeUpdates()
+    {
+        if (empty($this->nextNodeUpdates)) {
+            return;
+        }
+        
+        // 使用 CASE WHEN 批量更新
+        $caseNextNodeId = "CASE id ";
+        $caseNextNodeUuid = "CASE id ";
+        $updateIds = [];
+        
+        foreach ($this->nextNodeUpdates as $nodeId => $update) {
+            $updateIds[] = $nodeId;
+            $caseNextNodeId .= "WHEN {$nodeId} THEN {$update['next_node_id']} ";
+            $caseNextNodeUuid .= "WHEN {$nodeId} THEN " . DB::getPdo()->quote($update['next_node_uuid']) . " ";
+        }
+        
+        $caseNextNodeId .= "END";
+        $caseNextNodeUuid .= "END";
+        
+        NProcessNode::query()
+            ->whereIn('id', $updateIds)
+            ->where("design_id", $this->designId)
+            ->where("ver", $this->ver)
+            ->update([
+                'next_node_id' => DB::raw($caseNextNodeId),
+                'next_node_uuid' => DB::raw($caseNextNodeUuid),
+            ]);
+        
+        // 清空队列
+        $this->nextNodeUpdates = [];
+    }
+    
+    /**
+     * 批量更新 null 节点
+     */
+    private function batchUpdateNullNodes($nullNextNodeNodes, $branchNodes)
+    {
+        if ($nullNextNodeNodes->isEmpty()) {
+            return;
+        }
+        
+        $updates = [];
+        
+        foreach($nullNextNodeNodes as $nullNextNodeNode){
+            $nPath = $nullNextNodeNode->n_path;
+            if (empty($nPath)) {
+                continue;
+            }
+            
+            // 优化：使用更高效的字符串处理（使用 strpos 而不是 mb_strpos）
+            $nPaths = [];
+            $pathParts = explode('>', $nPath);
+            foreach ($pathParts as $part) {
+                if (strpos($part, '-') !== false) {
+                    $nPaths[] = $part;
+                }
+            }
+            
+            if (empty($nPaths)) {
+                continue;
+            }
+            
+            $nPaths = array_reverse($nPaths);
+            
+            foreach($nPaths as $nPathItem){
+                $branchId = (int)explode('-', $nPathItem)[0];
+                $branchNodeFind = $branchNodes->get($branchId);
+                
+                if($branchNodeFind){
+                    $branchChildNodes = $branchNodeFind->branchNextNodes;
+                    if($branchChildNodes->isNotEmpty()){
+                        $firstChild = $branchChildNodes->first();
+                        $updates[] = [
+                            'id' => $nullNextNodeNode->id,
+                            'next_node_id' => $firstChild->id,
+                            'next_node_uuid' => $firstChild->n_uuid,
+                        ];
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // 批量更新
+        if (!empty($updates)) {
+            $caseNextNodeId = "CASE id ";
+            $caseNextNodeUuid = "CASE id ";
+            $updateIds = [];
+            
+            foreach ($updates as $update) {
+                $updateIds[] = $update['id'];
+                $caseNextNodeId .= "WHEN {$update['id']} THEN {$update['next_node_id']} ";
+                $caseNextNodeUuid .= "WHEN {$update['id']} THEN " . DB::getPdo()->quote($update['next_node_uuid']) . " ";
+            }
+            
+            $caseNextNodeId .= "END";
+            $caseNextNodeUuid .= "END";
+            
+            NProcessNode::query()
+                ->whereIn('id', $updateIds)
+                ->where("design_id", $this->designId)
+                ->where("ver", $this->ver)
+                ->update([
+                    'next_node_id' => DB::raw($caseNextNodeId),
+                    'next_node_uuid' => DB::raw($caseNextNodeUuid),
+                ]);
         }
     }
 

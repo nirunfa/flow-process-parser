@@ -194,7 +194,6 @@ class ProcessDesignController extends BaseController
             }
         } catch (\Exception $e) {
             DB::rollBack();
-            throw $e;
             return $this->error("操作失败！{$e->getMessage()}");
         }
     }
