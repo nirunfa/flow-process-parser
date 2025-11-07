@@ -16,15 +16,15 @@ class FlowTaskService
      *     task_name?: string,
      *     status?: number
      * } $searchParam 用户数据数组, code、instance_id 至少要传一个 tansk_name、status 为可选参数
-     * @return array{
-     current_page: int,
-     data: array,
-     total: int,
-     last_page: int,
-     per_page: int,
-     }
+     * @return array {
+     *     current_page: int,
+     *     data: array,
+     *     total: int,
+     *     last_page: int,
+     *     per_page: int,
+     * }
      */
-    public static function getTasks(array $searchParam = []): array
+    public static function getTasks(array $searchParam = [])
     {
         $instanceCode = $searchParam['code'] ?? '';
         $instanceId = $searchParam['instance_id'] ?? '';
@@ -223,7 +223,7 @@ class FlowTaskService
      * 添加任务评论
      * @param int $taskId
      * @param string $comment
-     * @return NProcessTask
+     * @return mixed
      */
     public static function addComment($taskId, $comment)
     {
