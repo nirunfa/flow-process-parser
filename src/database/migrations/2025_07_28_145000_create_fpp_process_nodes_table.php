@@ -29,6 +29,7 @@ class CreateFppProcessNodesTable extends Migration
             $table->bigInteger('next_node_id')->nullable()->comment('下一个处理结点 id ');
             $table->string('next_node_uuid')->nullable()->comment('下一个处理结点 uuid ');
 
+            $table->text('n_path')->nullable()->comment('路径 ');
             $table->tinyInteger('is_branch_child')->default(0)->comment('用于分支节点非直接条件的标识 ');
 
             $table->string('description')->nullable()->comment('描述、说明 ');

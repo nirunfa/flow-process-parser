@@ -27,20 +27,6 @@ class JsonNodeParserJob implements ShouldQueue
     private $designId = 0;
     private $ver = 0;
 
-    /**
-     * 分支[{
-             "prev_branch_node_id": 44,
-             "branch_node_id": 46,
-             "min_child_node_id": 47,
-             "max_child_node_id": 50,
-             "max_condition_child_node_id": [
-                 52,
-                 53
-             ]
-         }] map数组
-    */
-    private $branchMap = [];
-    private $nodeIndexMap = [];
 
     public function __construct($designId, $ver)
     {
@@ -75,23 +61,41 @@ class JsonNodeParserJob implements ShouldQueue
                 }
 
 
-                $nodeIdTree = $this->combineChildNode($orgNodeData, null);
-                Log::warning('branchMap:'.json_encode($this->branchMap));
+                $this->combineChildNode($orgNodeData, null, '');
 
-                //#region 更新映射关系
-                foreach($this->branchMap as $branchMap){
-                    $prevId = $branchMap['prev_node_id'] ?? null;
-                    $nextId = $branchMap['next_node_id'] ?? null;
-                    $nextUuid = $branchMap['next_node_uuid'] ?? null;
-                    if(empty($prevId) || (empty($nextId) && empty($nextUuid))){
-                        continue;
+                //查询分支 node
+                $branchNodes = NProcessNode::query()
+                    ->with(['branchNextNodes'=>function($query){
+                        $query->where('is_branch_child', NProcessNode::ENABLE_BRANCH_CHILD);
+                    }])
+                    ->where('type', NProcessNode::TYPE_BRANCH)
+                    ->get();
+                //更新 next_node_id 和 next_node_uuid 的映射关系
+                $nullNextNodeNodes = NProcessNode::query()
+                    ->where('next_node_id', 0)
+                    ->orWhereNull('next_node_id')
+                    ->get();
+                foreach($nullNextNodeNodes as $nullNextNodeNode){
+                    $nPath = $nullNextNodeNode->n_path;
+                    $nPaths = Arr::where(explode('>', $nPath), function($value){
+                        return mb_strpos($value, '-') !== false;
+                    });
+                    $nPaths = array_reverse($nPaths);
+                    foreach($nPaths as $nPath){
+                        $branchId = explode('-', $nPath)[0];
+                        $branchNodeFind = $branchNodes->firstWhere('id', $branchId);
+                        if($branchNodeFind){
+                            $branchChildNodes = $branchNodeFind->branchNextNodes;
+                            if($branchChildNodes->isNotEmpty()){
+                                $nullNextNodeNode->update([
+                                    'next_node_id' => $branchChildNodes->first()->id,
+                                    'next_node_uuid' => $branchChildNodes->first()->n_uuid,
+                                ]);
+                                break;
+                            }
+                        }
                     }
-                    NProcessNode::query()->where('id', $prevId)->update(array_filter([
-                        "next_node_id" => $nextId,
-                        "next_node_uuid" => $nextUuid,
-                    ], function($v){ return !is_null($v); }));
                 }
-                //#endregion
         
             });
         } else {
@@ -104,6 +108,7 @@ class JsonNodeParserJob implements ShouldQueue
     /**
      * @param $orgNodeData
      * @param $preProcessNode
+     * @param $path
      * @param $isBranchChild
      * @return mixed
      *
@@ -112,7 +117,7 @@ class JsonNodeParserJob implements ShouldQueue
      * 9并行节点 10并行节点中各分支 11并行节点后的聚合节点
      * 12通知节点
      */
-    private function combineChildNode($orgNodeData, $preProcessNode,$isBranchChild=0)
+    private function combineChildNode($orgNodeData, $preProcessNode,$path,$isBranchChild=0)
     {
         $nodeType = $orgNodeData["type"];
         $attr = $orgNodeData["attr"] ?? []; //额外属性
@@ -194,6 +199,7 @@ class JsonNodeParserJob implements ShouldQueue
             "prev_node_id" => $preProcessNode->id ?? null,
             "prev_node_uuid" => $orgNodeData["pid"] ?? null,
             'is_branch_child' => $isBranchChild ?? false,
+            'n_path' => trim($path,'-'),
         ];
 
         if (
@@ -245,6 +251,13 @@ class JsonNodeParserJob implements ShouldQueue
                 "next_node_uuid" => $processNode->n_uuid,
             ]);
         }
+        if(!$path || strlen($path) === 0){
+            $path = $processNode->id;
+        }else{
+            $path = $path .'>'. $processNode->id;
+        }
+        
+        $path = str_replace('->', '-', $path);
 
         //保存相关配置等信息
         //attr属性
@@ -264,25 +277,14 @@ class JsonNodeParserJob implements ShouldQueue
         //非条件子节点
         $childNode = $orgNodeData["childNode"] ?? [];
         if (!empty($childNode)){
-            $this->combineChildNode($childNode, $processNode,$nodeType === NProcessNode::TYPE_BRANCH?1:0);
-            if($isBranchChild === 1){
-                $this->branchMap[] = [,
-                    "next_node_id" => $processNode->id,
-                    "next_node_uuid" => $processNode->n_uuid,
-                ];
-            }
-        }else{
-            $this->nodeIndexMap[] = [
-                'node_id' => $processNode->id,
-                "index" => Arr::pluck($this->nodeIndexMap,'index'),
-            ];
+            $this->combineChildNode($childNode, $processNode, $path, $nodeType === NProcessNode::TYPE_BRANCH?1:0);
         }
 
         //条件结点
         $conditionNodes = $orgNodeData["conditionNode"] ?? ($orgNodeData["conditionNodes"] ?? []);
         if (!empty($conditionNodes)) {
             foreach ($conditionNodes as $conditionNode) {
-                $this->combineChildNode($conditionNode, $processNode);
+                $this->combineChildNode($conditionNode, $processNode, $path.'-');
             }
         }
     }
