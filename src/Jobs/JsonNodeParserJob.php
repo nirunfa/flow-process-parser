@@ -10,6 +10,12 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Nirunfa\FlowProcessParser\Contracts\JsonNodeParserJobInterface;
+use Nirunfa\FlowProcessParser\Events\NodeParsing\NodeParsingStarted;
+use Nirunfa\FlowProcessParser\Events\NodeParsing\NodeParsingCompleted;
+use Nirunfa\FlowProcessParser\Events\NodeParsing\NodeCreating;
+use Nirunfa\FlowProcessParser\Events\NodeParsing\NodeCreated;
+use Nirunfa\FlowProcessParser\Events\NodeParsing\RelationDataSaving;
 use Nirunfa\FlowProcessParser\Models\NProcessDesignVersion;
 use Nirunfa\FlowProcessParser\Models\NProcessForm;
 use Nirunfa\FlowProcessParser\Models\NProcessNode;
@@ -19,8 +25,13 @@ use Nirunfa\FlowProcessParser\Models\NProcessNodeCondition;
 
 /**
  * 流程设计 Json 节点解析 job
+ * 
+ * 扩展说明：
+ * 1. 继承此类并重写 protected 方法来自定义逻辑
+ * 2. 监听事件来自定义行为
+ * 3. 通过配置文件绑定自定义实现
  */
-class JsonNodeParserJob implements ShouldQueue
+class JsonNodeParserJob implements ShouldQueue, JsonNodeParserJobInterface
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
@@ -61,6 +72,10 @@ class JsonNodeParserJob implements ShouldQueue
         }
         $jsonContent = $versionRecord->json_content;
         $orgNodeData = json_decode($jsonContent, true);
+        
+        // 触发解析开始事件
+        event(new NodeParsingStarted($this->designId, $this->ver, $orgNodeData));
+        
         if ($orgNodeData) {
             DB::transaction(function () use ($orgNodeData) {
                 //开始之前先清理相关版本的模型节点等数据
@@ -110,6 +125,9 @@ class JsonNodeParserJob implements ShouldQueue
                 $this->batchUpdateNullNodes($nullNextNodeNodes, $branchNodes);
         
             });
+            
+            // 触发解析完成事件
+            event(new NodeParsingCompleted($this->designId, $this->ver, $orgNodeData));
         } else {
             throw new \Exception(
                 "JsonNodeParserJob jsonContent is empty or error format string",
@@ -128,8 +146,10 @@ class JsonNodeParserJob implements ShouldQueue
      * 7意见分支节点  8意见分支节点中各分支
      * 9并行节点 10并行节点中各分支 11并行节点后的聚合节点
      * 12通知节点
+     * 
+     * 可重写方法：子类可以重写此方法来自定义节点解析逻辑
      */
-    private function combineChildNode($orgNodeData, $preProcessNode,$path,$isBranchChild=0)
+    protected function combineChildNode($orgNodeData, $preProcessNode,$path,$isBranchChild=0)
     {
         $nodeType = $orgNodeData["type"];
         $attr = $orgNodeData["attr"] ?? []; //额外属性
@@ -263,8 +283,14 @@ class JsonNodeParserJob implements ShouldQueue
             }
         }
 
+        // 触发节点创建前事件，允许外部修改 $initNode
+        event(new NodeCreating($this->designId, $this->ver, $orgNodeData, $initNode));
+        
         //创建 node
         $processNode = NProcessNode::query()->create($initNode);
+        
+        // 触发节点创建后事件
+        event(new NodeCreated($this->designId, $this->ver, $processNode));
         
         // 延迟更新前一个节点的 next_node_id
         if(isset($preProcessNode)){
@@ -318,12 +344,16 @@ class JsonNodeParserJob implements ShouldQueue
     
     /**
      * 批量保存关联数据
+     * 可重写方法：子类可以重写此方法来自定义关联数据保存逻辑
      */
-    private function flushRelationData()
+    protected function flushRelationData()
     {
         if (empty($this->relationDataQueue)) {
             return;
         }
+        
+        // 触发关联数据保存前事件，允许外部修改数据
+        event(new RelationDataSaving($this->designId, $this->ver, $this->relationDataQueue));
         
         // 按类型分组，批量插入
         $attrData = [];
@@ -414,8 +444,9 @@ class JsonNodeParserJob implements ShouldQueue
     
     /**
      * 批量更新 next_node_id
+     * 可重写方法：子类可以重写此方法来自定义更新逻辑
      */
-    private function flushNextNodeUpdates()
+    protected function flushNextNodeUpdates()
     {
         if (empty($this->nextNodeUpdates)) {
             return;
@@ -450,8 +481,9 @@ class JsonNodeParserJob implements ShouldQueue
     
     /**
      * 批量更新 null 节点
+     * 可重写方法：子类可以重写此方法来自定义 null 节点更新逻辑
      */
-    private function batchUpdateNullNodes($nullNextNodeNodes, $branchNodes)
+    protected function batchUpdateNullNodes($nullNextNodeNodes, $branchNodes)
     {
         if ($nullNextNodeNodes->isEmpty()) {
             return;

@@ -2,7 +2,7 @@
 
 namespace Nirunfa\FlowProcessParser\Traits;
 
-use Nirunfa\FlowProcessParser\Jobs\TaskDirectionJob;
+// use Nirunfa\FlowProcessParser\Jobs\TaskDirectionJob; // 使用辅助函数 createTaskDirectionJob 替代
 use Nirunfa\FlowProcessParser\Models\NProcessInstance;
 use Nirunfa\FlowProcessParser\Models\NProcessTask;
 
@@ -21,9 +21,9 @@ trait CommonTrait
             if (empty($queueName)) {
                 $queueName = 'process_parser';
             }
-            dispatch(new TaskDirectionJob($taskId))->onQueue($queueName);
+            dispatch(createTaskDirectionJob($taskId))->onQueue($queueName);
         } else {
-            dispatch_sync(new TaskDirectionJob($taskId));
+            dispatch_sync(createTaskDirectionJob($taskId));
         }
     }
 

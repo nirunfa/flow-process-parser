@@ -42,6 +42,9 @@ class FlowProcessParserServiceProvider extends ServiceProvider
         $this->app->singleton('process_parser', function ($app) {
             return new ProcessParser($app['config']);
         });
+        
+        // 注意：JsonNodeParserJob 通过辅助函数 createJsonNodeParserJob() 创建
+        // 支持通过配置文件自定义 Job 类
 
     }
 

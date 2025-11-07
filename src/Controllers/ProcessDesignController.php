@@ -5,7 +5,7 @@ namespace Nirunfa\FlowProcessParser\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
-use Nirunfa\FlowProcessParser\Jobs\JsonNodeParserJob;
+// use Nirunfa\FlowProcessParser\Jobs\JsonNodeParserJob; // 使用辅助函数 createJsonNodeParserJob 替代
 use Nirunfa\FlowProcessParser\Models\NProcessDesign;
 use Nirunfa\FlowProcessParser\Models\NProcessDesignVersion;
 use Nirunfa\FlowProcessParser\Repositories\ProcessDesignRepository;
@@ -178,11 +178,11 @@ class ProcessDesignController extends BaseController
                         $queueName = "process_parser";
                     }
                     $this->dispatch(
-                        new JsonNodeParserJob($design->id, $newVer),
+                        createJsonNodeParserJob($design->id, $newVer),
                     )->onQueue($queueName);
                 } else {
                     $this->dispatchSync(
-                        new JsonNodeParserJob($design->id, $newVer),
+                        createJsonNodeParserJob($design->id, $newVer),
                     );
                 }
 

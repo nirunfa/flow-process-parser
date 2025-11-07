@@ -2,13 +2,20 @@
 
 namespace Nirunfa\FlowProcessParser\Jobs;
 
-use Illuminate\Collection\Collection;
+use Illuminate\Support\Collection;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Str;
+use Nirunfa\FlowProcessParser\Contracts\TaskDirectionJobInterface;
+use Nirunfa\FlowProcessParser\Events\TaskDirection\TaskDirectionStarted;
+use Nirunfa\FlowProcessParser\Events\TaskDirection\TaskDirectionCompleted;
+use Nirunfa\FlowProcessParser\Events\TaskDirection\NodeChecking;
+use Nirunfa\FlowProcessParser\Events\TaskDirection\NodeChecked;
+use Nirunfa\FlowProcessParser\Events\TaskDirection\NewTaskCreating;
+use Nirunfa\FlowProcessParser\Events\TaskDirection\NewTaskCreated;
 use Nirunfa\FlowProcessParser\Models\NProcessNode;
 use Nirunfa\FlowProcessParser\Models\NProcessNodeAttr;
 use Nirunfa\FlowProcessParser\Models\NProcessNodeCondition;
@@ -17,22 +24,32 @@ use Nirunfa\FlowProcessParser\Traits\CommonTrait;
 
 /**
  * 任务走向 job
+ * 
+ * 扩展说明：
+ * 1. 继承此类并重写 protected 方法来自定义逻辑
+ * 2. 监听事件来自定义行为
+ * 3. 通过配置文件绑定自定义实现
  */
-class TaskDirectionJob implements ShouldQueue
+class TaskDirectionJob implements ShouldQueue, TaskDirectionJobInterface
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels,CommonTrait;
 
     private $taskId;
+    protected $task;
 
     public function __construct($taskId){
         $this->taskId = $taskId;
     }
 
     public function handle(){
-        $task = NProcessTask::query()->find($this->taskId);
+        $this->task = NProcessTask::query()->find($this->taskId);
+        
+        // 触发任务走向处理开始事件
+        event(new TaskDirectionStarted($this->taskId, $this->task));
+        
         //查找下一个任务节点并生成新任务
-        $task->loadMissing(['instance.variables','variables','node.nextNodes.approvers']);
-        $nextNodes = $task->node->nextNodes ?? null;
+        $this->task->loadMissing(['instance.variables','variables','node.nextNodes.approvers']);
+        $nextNodes = $this->task->node->nextNodes ?? null;
         if(!empty($nextNodes) && $nextNodes->isNotEmpty()){
             //条件分支类型
             /**
@@ -42,28 +59,38 @@ class TaskDirectionJob implements ShouldQueue
              * 3.如果都没有则报错
              */
 
-            $taskVariables = $task->variables ?? null;//任务变量
-            $instanceVariables = $task->instance->variables->filter(function($iv){
+            $taskVariables = $this->task->variables ?? null;//任务变量
+            $instanceVariables = $this->task->instance->variables->filter(function($iv){
                 return !($iv->task_id > 0);
             });//流程实例变量
 
             $nextNode = $nextNodes->first();
-            $nextNode = self::nodeCheck($nextNode,$taskVariables,$instanceVariables);
+            $nextNode = $this->nodeCheck($nextNode,$taskVariables,$instanceVariables);
         }
 
         if(!isset($nextNode) || $nextNode === 'finish' || $nextNode === null){
             //没有表示卡主或者流程完成
-            $task->instance->setComplete();
-            $task->instance->save();
+            $this->task->instance->setComplete();
+            $this->task->instance->save();
+            
+            // 触发任务走向处理完成事件（流程完成）
+            event(new TaskDirectionCompleted($this->taskId, $this->task, $nextNode, null));
         }else{
-
             //创建任务
             $taskData = [
                 'name' => $nextNode->name,
                 'node_id' => $nextNode->id,
                 'status' =>NProcessTask::STATUS_UNASSIGNED
             ];
-            $newTask = $task->instance->tasks()->create($taskData);
+            
+            // 触发新任务创建前事件，允许修改任务数据
+            event(new NewTaskCreating($this->taskId, $this->task, $nextNode, $taskData));
+            
+            $newTask = $this->task->instance->tasks()->create($taskData);
+            
+            // 触发新任务创建后事件
+            event(new NewTaskCreated($this->taskId, $this->task, $newTask));
+            
             $approvers = $nextNode->approvers ?? [];
             foreach ($approvers as $approver){
                 $newTask->assignees()->create([
@@ -76,6 +103,9 @@ class TaskDirectionJob implements ShouldQueue
                 //自动完成或自动拒绝
                 $this->taskPromote($newTask,null,0,$nextNode->attr->isAutoPass()?'pass':'reject');
             }
+            
+            // 触发任务走向处理完成事件（创建了新任务）
+            event(new TaskDirectionCompleted($this->taskId, $this->task, $nextNode, $newTask));
         }
 
     }
@@ -85,16 +115,23 @@ class TaskDirectionJob implements ShouldQueue
      * @param $nextNode
      * @param $taskVariables
      * @param $instanceVariables
+     * 可重写方法：子类可以重写此方法来自定义节点检查逻辑
      */
-    private function nodeCheck($nextNode,$taskVariables,$instanceVariables){
+    protected function nodeCheck($nextNode,$taskVariables,$instanceVariables){
+        // 触发节点检查前事件
+        event(new NodeChecking($this->taskId, $this->task, $nextNode, $taskVariables, $instanceVariables));
+        
         if(!empty($nextNode)){
             if($nextNode->type === NProcessNode::TYPE_BRANCH){
-                $nextNode = self::branchNodeCheck($nextNode,$taskVariables,$instanceVariables);
+                $nextNode = $this->branchNodeCheck($nextNode,$taskVariables,$instanceVariables);
             }else if($nextNode->type === NProcessNode::TYPE_CONDITION){
-                $nextNode = self::conditionNodeCheck($nextNode,$taskVariables,$instanceVariables);
+                $nextNode = $this->conditionNodeCheck($nextNode,$taskVariables,$instanceVariables);
             }
         }
 
+        // 触发节点检查后事件
+        event(new NodeChecked($this->taskId, $this->task, $nextNode, $nextNode));
+        
         return $nextNode;
     }
 
@@ -103,8 +140,9 @@ class TaskDirectionJob implements ShouldQueue
     * @param $branchNode
     * @param $taskVariables
     * @param $instanceVariables
+    * 可重写方法：子类可以重写此方法来自定义分支节点检查逻辑
     */
-    private function branchNodeCheck($branchNode,$taskVariables,$instanceVariables){
+    protected function branchNodeCheck($branchNode,$taskVariables,$instanceVariables){
         $branchNode->loadMissing(['nextNodes.nextNodes', 'nextNodes.conditions', 'attr']);
 
         //分支节点，需要先获取到下面的分支
@@ -117,7 +155,7 @@ class TaskDirectionJob implements ShouldQueue
             if($branchChildNode->conditions->isEmpty()){
                 $nextNode = $branchChildNode->nextNodes->first();
             }else{
-                $res = self::conditionNodeCheck($branchChildNode,$taskVariables,$instanceVariables);
+                $res = $this->conditionNodeCheck($branchChildNode,$taskVariables,$instanceVariables);
                 if($res){
                     $nextNode = $branchChildNode->nextNodes->first();
                     break;
@@ -125,7 +163,7 @@ class TaskDirectionJob implements ShouldQueue
             }
         }
         //如何是条件或者分支节点，又重新算一次
-        $nextNode = self::nodeCheck($nextNode,$taskVariables,$instanceVariables);
+        $nextNode = $this->nodeCheck($nextNode,$taskVariables,$instanceVariables);
 
         $nextNode = $nextNode ?? $branchChildNodes->nextNodes->filter(function($node) use($branchNode){
             return $node->is_branch_child === NProcessNode::ENABLE_BRANCH_CHILD;
@@ -139,8 +177,9 @@ class TaskDirectionJob implements ShouldQueue
      * @param Collection $taskVariables
      * @param Collection $instanceVariables
      * @return boolean|string
+     * 可重写方法：子类可以重写此方法来自定义条件节点检查逻辑
      */
-    private function conditionNodeCheck($conditionNode,$taskVariables,$instanceVariables){
+    protected function conditionNodeCheck($conditionNode,$taskVariables,$instanceVariables){
         $conditionNode->loadMissing(['nextNodes.nextNodes', 'nextNodes.conditions', 'attr']);
         //当前条件节点相关信息
         $conditionNodeAttr = $conditionNode->attr;
@@ -285,11 +324,11 @@ class TaskDirectionJob implements ShouldQueue
             {
                 return "finish";
             }else{
-                $nextNode = self::nodeCheck($conditionNode->nextNodes->first(),$taskVariables,$instanceVariables);
+                $nextNode = $this->nodeCheck($conditionNode->nextNodes->first(),$taskVariables,$instanceVariables);
                 if( ($towards === NProcessNodeAttr::TRUE_DOWN_SKIP && $groupSumFlag)
                 || ($towards === NProcessNodeAttr::FALSE_DOWN_SKIP && !$groupSumFlag) )
                 {
-                     $nextNode = self::nodeCheck($nextNode->nextNodes->first(),$taskVariables,$instanceVariables);
+                     $nextNode = $this->nodeCheck($nextNode->nextNodes->first(),$taskVariables,$instanceVariables);
                 }
                 return $nextNode;
             }

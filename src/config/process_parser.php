@@ -41,6 +41,22 @@ return [
     'json_parser'=>[
         'use_queue'=>false,/*是否使用异步队列,默认不启用*/
         'queue_name'=>'process_parser',/* 异步队列所在组，对应 ->onQueue()方法的参数； 不填写或者为空则为拓展默认的 */
+        
+        /**
+         * 自定义 Job 类绑定
+         * 设置为 null 使用默认的 JsonNodeParserJob
+         * 设置为自定义类名（需实现 JsonNodeParserJobInterface 接口）
+         * 例如：'custom_job' => \App\Jobs\CustomJsonNodeParserJob::class
+         */
+        'custom_job' => null,
+        
+        /**
+         * 自定义 TaskDirectionJob 类绑定
+         * 设置为 null 使用默认的 TaskDirectionJob
+         * 设置为自定义类名（需实现 TaskDirectionJobInterface 接口）
+         * 例如：'custom_task_direction_job' => \App\Jobs\CustomTaskDirectionJob::class
+         */
+        'custom_task_direction_job' => null,
     ],
     /*
      * 路由相关配置
