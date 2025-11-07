@@ -2,11 +2,9 @@
 
 namespace Nirunfa\FlowProcessParser\Services;
 
-use Illuminate\Support\Collection;
+use Nirunfa\FlowProcessParser\Models\NProcessForm;
 use Nirunfa\FlowProcessParser\Models\NProcessTask;
 use Nirunfa\FlowProcessParser\Models\NProcessVariable;
-use Nirunfa\FlowProcessParser\Resources\ProcessTaskCollection;
-use Nirunfa\FlowProcessParser\Resources\ProcessTaskResource;
 
 class FlowTaskService
 {
@@ -34,7 +32,7 @@ class FlowTaskService
         $status = $searchParam['status'] ?? ['0', 1];
 
         if (empty($instanceCode) && empty($instanceId)) {
-            return '流程单号或流程ID 不能都为空!';
+            return ['code'=>400,'message'=>'流程单号或流程ID 不能都为空!'];
         }
 
         $query = NProcessTask::query()->with(['assignees', 'node']);

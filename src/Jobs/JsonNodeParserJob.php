@@ -10,14 +10,12 @@ use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Str;
 use Nirunfa\FlowProcessParser\Models\NProcessDesignVersion;
 use Nirunfa\FlowProcessParser\Models\NProcessForm;
 use Nirunfa\FlowProcessParser\Models\NProcessNode;
 use Nirunfa\FlowProcessParser\Models\NProcessNodeApprover;
 use Nirunfa\FlowProcessParser\Models\NProcessNodeAttr;
 use Nirunfa\FlowProcessParser\Models\NProcessNodeCondition;
-use Nirunfa\FlowProcessParser\Traits\ParserTrait;
 
 /**
  * 流程设计 Json 节点解析 job
@@ -42,6 +40,7 @@ class JsonNodeParserJob implements ShouldQueue
          }] map数组
     */
     private $branchMap = [];
+    private $nodeIndexMap = [];
 
     public function __construct($designId, $ver)
     {
@@ -55,6 +54,9 @@ class JsonNodeParserJob implements ShouldQueue
             ->where("design_id", $this->designId)
             ->where("ver", $this->ver)
             ->first();
+        if(!$versionRecord){
+            throw new \RuntimeException("NProcessDesignVersion not found: design_id={$this->designId}, ver={$this->ver}");
+        }
         $jsonContent = $versionRecord->json_content;
         $orgNodeData = json_decode($jsonContent, true);
         if ($orgNodeData) {
@@ -75,69 +77,22 @@ class JsonNodeParserJob implements ShouldQueue
 
                 $nodeIdTree = $this->combineChildNode($orgNodeData, null);
                 Log::warning('branchMap:'.json_encode($this->branchMap));
-                if(!empty($this->branchMap)){
-                    $whereRaw = "CASE ";
-                    $updateIds = [];
-                    foreach($this->branchMap as $branchKey => $branchData){
-                        /*
-                        {
-                                "prev_branch_node_id": 44,
-                                "branch_node_id": 46,
-                                "min_child_node_id": 47,
-                                "max_child_node_id": 50,
-                                "max_condition_child_node_id": [
-                                    52,
-                                    53
-                                ]
-                            }
-                            */
-                        $prevNodeId = $branchData['prev_branch_node_id'];
-                        $branchNodeId = $branchData['branch_node_id'];
-                        $minChildNodeId = $branchData['min_child_node_id'];
-                        $maxChildNodeId = $branchData['max_child_node_id'];
-                        $maxConditionChildNodeId = array_filter($branchData['max_condition_child_node_id']);
 
-                        //这是需要更新 next_node_id 为 $minChildNodeId
-
-                        $prevMinChildNodeId = $this->findMinChildNodeId($prevNodeId);
-                        if(empty($minChildNodeId)){
-                            $minChildNodeId = $prevMinChildNodeId;
-                        }
-                        array_push($updateIds, ...$maxConditionChildNodeId);
-                        if(!empty($minChildNodeId)){
-                            $whereRaw .= 'WHEN id IN (' . implode(',', $maxConditionChildNodeId) . ') THEN '.$minChildNodeId.' ';
-                        }
-
-                        //$maxChildNodeId 的 next_node_id 更新为 $praveNodeId 的$minChi
-                        if($maxChildNodeId && !empty($prevMinChildNodeId)){
-                            $updateIds[] = $maxChildNodeId;
-                            $whereRaw .= 'WHEN id IN (' . $maxChildNodeId . ') THEN '.$prevMinChildNodeId.' ';
-
-                        }
+                //#region 更新映射关系
+                foreach($this->branchMap as $branchMap){
+                    $prevId = $branchMap['prev_node_id'] ?? null;
+                    $nextId = $branchMap['next_node_id'] ?? null;
+                    $nextUuid = $branchMap['next_node_uuid'] ?? null;
+                    if(empty($prevId) || (empty($nextId) && empty($nextUuid))){
+                        continue;
                     }
-
-                    $whereRaw .= ' END';
-                    //更新 next_node_id
-                    NProcessNode::query()->whereIn('id', $updateIds)
-                        ->update(['next_node_id' => DB::raw($whereRaw)]);
-                    $tableName = (new NProcessNode())->getTable();
-                    //更新 next_node_uuid
-                    NProcessNode::from($tableName.' as fpn')
-                        ->join($tableName.' as fpn2', 'fpn2.id', '=', 'fpn.next_node_id')
-                        ->whereNotNull('fpn.next_node_id')
-                        ->whereNull('fpn.next_node_uuid')
-                        ->whereRaw('fpn.ver = fpn2.ver')
-                        ->update([
-                            'fpn.next_node_uuid' => DB::raw('fpn2.n_uuid')
-                        ]);
-                    //修正关系
-                    NProcessNode::from($tableName.' as fpn')
-                        ->join($tableName.' as fpn2', 'fpn2.n_uuid', '=', 'fpn.next_node_uuid')
-                        ->whereRaw('fpn.next_node_id != fpn2.id and fpn.ver = fpn2.ver')
-                        ->update([
-                            'fpn.next_node_id' => DB::raw('fpn2.id')
-                        ]);
+                    NProcessNode::query()->where('id', $prevId)->update(array_filter([
+                        "next_node_id" => $nextId,
+                        "next_node_uuid" => $nextUuid,
+                    ], function($v){ return !is_null($v); }));
                 }
+                //#endregion
+        
             });
         } else {
             throw new \Exception(
@@ -175,10 +130,10 @@ class JsonNodeParserJob implements ShouldQueue
             case NProcessNode::TYPE_ASSIGNEE:
                 //审批人或者处理人节点
                 $nodeAttr = [
-                    "approve_type" => $attr["approvalMethod"],
-                    "approve_mode" => $attr["approvalMode"],
-                    "approver_same_initiator" => $attr["sameMode"],
-                    "approver_empty" => $attr["noHander"],
+                    "approve_type" => $attr["approvalMethod"] ?? null,
+                    "approve_mode" => $attr["approvalMode"] ?? null,
+                    "approver_same_initiator" => $attr["sameMode"] ?? null,
+                    "approver_empty" => $attr["noHander"] ?? null,
                 ];
                 foreach ($approverList as $approverItem) {
                     $approverDatas[] = new NProcessNodeApprover([
@@ -186,14 +141,12 @@ class JsonNodeParserJob implements ShouldQueue
                         "approver_type" => $approverItem["approverType"],
                         "approve_direct" => $approverItem["levelMode"],
                         'level_mode' => $approverItem["levelMode"] ?? null,
-                        'loop_count' =>is_array($approverItem["loopCount"])?($approverItem["loopCount"][0] ??
-                        0):$approverItem["loopCount"],
-                        "approver_ids" =>
-                            is_array($approverItem["approverIds"])?($approverItem["approverIds"][0] ??
-                            ""):$approverItem["approverIds"],
-                        "approver_names" =>
-                           is_array($approverItem["approverNames"])?($approverItem["approverNames"][0] ??
-                            ""):$approverItem["approverNames"],
+                        'loop_count' =>isset($approverItem["loopCount"]) && is_array($approverItem["loopCount"])?($approverItem["loopCount"][0] ??
+                        0):($approverItem["loopCount"]??0),
+                        "approver_ids" =>isset($approverItem["approverIds"]) && is_array($approverItem["approverIds"])?($approverItem["approverIds"][0] ??
+                        ""):$approverItem["approverIds"],
+                        "approver_names" =>isset($approverItem["approverNames"]) && is_array($approverItem["approverNames"])?($approverItem["approverNames"][0] ??
+                        ""):$approverItem["approverNames"],
                         "order_sort" => $approverItem["sort"],
                     ]);
                 }
@@ -209,7 +162,7 @@ class JsonNodeParserJob implements ShouldQueue
                     "condition_type" => $attr["conditionType"] ?? null,
                 ];
                 foreach ($conditionList as $conditionListItem) {
-                    $conditionItems = $conditionListItem["conditions"];
+                    $conditionItems = $conditionListItem["conditions"] ?? [];
                     foreach ($conditionItems as $conditionItem) {
                         $conditions[] = new NProcessNodeCondition([
                             "uuid" => $conditionItem["id"],
@@ -250,7 +203,7 @@ class JsonNodeParserJob implements ShouldQueue
                 NProcessNode::TYPE_ASSIGNEE,
             ])
         ) {
-            $initFormDesignData = $orgNodeData["formDesignData"];
+            $initFormDesignData = $orgNodeData["formDesignData"] ?? [];
             $isNewForm = $initFormDesignData["isNew"] ?? true;
             if(is_string($initFormDesignData["isNew"]) && $initFormDesignData["isNew"] == "false"){
                 $isNewForm = false;
@@ -311,63 +264,27 @@ class JsonNodeParserJob implements ShouldQueue
         //非条件子节点
         $childNode = $orgNodeData["childNode"] ?? [];
         if (!empty($childNode)){
-            $childProcessNodeIds =
-                    $this->combineChildNode($childNode, $processNode,$nodeType === NProcessNode::TYPE_BRANCH?1:0);
+            $this->combineChildNode($childNode, $processNode,$nodeType === NProcessNode::TYPE_BRANCH?1:0);
+            if($isBranchChild === 1){
+                $this->branchMap[] = [,
+                    "next_node_id" => $processNode->id,
+                    "next_node_uuid" => $processNode->n_uuid,
+                ];
+            }
+        }else{
+            $this->nodeIndexMap[] = [
+                'node_id' => $processNode->id,
+                "index" => Arr::pluck($this->nodeIndexMap,'index'),
+            ];
         }
-
-        $recentBranchNode = NProcessNode::query()->where('id', '<', $processNode->id)
-                                ->where('type', NProcessNode::TYPE_BRANCH)
-                                ->orderBy('id', 'desc')->first();
-        $branchMap = [
-            'prev_branch_node_id' => $recentBranchNode->id ?? null,
-            'branch_node_id' => $processNode->id,
-            'min_child_node_id' => collect($childProcessNodeIds ?? [])->flatten(1)->min(),
-            'max_child_node_id' => collect($childProcessNodeIds ?? [])->flatten(1)->max(),
-        ];
 
         //条件结点
         $conditionNodes = $orgNodeData["conditionNode"] ?? ($orgNodeData["conditionNodes"] ?? []);
         if (!empty($conditionNodes)) {
             foreach ($conditionNodes as $conditionNode) {
-                $conditionProcessNode = $this->combineChildNode($conditionNode, $processNode);
-                if(empty($branchMap['prev_branch_node_id'])){
-                    array_shift($conditionProcessNode);
-                }
-                $branchMap['max_condition_child_node_id'][] = collect($conditionProcessNode)->flatten(1)->max();
+                $this->combineChildNode($conditionNode, $processNode);
             }
         }
-
-        if($nodeType===NProcessNode::TYPE_BRANCH){
-            $this->branchMap[] = $branchMap;
-        }
-
-        $data = [];
-        if($nodeType!==NProcessNode::TYPE_BRANCH){
-             $data = [$processNode->id];
-        }
-        if(isset($childProcessNodeIds)){
-            array_push($data, ...$childProcessNodeIds);
-        }
-        return $data;
     }
 
-    // 定义查找函数：从指定的 branch_node_id 开始向上查找 min_child_node_id
-    private function findMinChildNodeId($startBranchId) {
-        $map = $this->branchMap;
-        $currentBranchId = $startBranchId;
-        while ($currentBranchId !== null) {
-            if ($obj =collect($map)->first(function ($m) use($currentBranchId){
-                        return $m['branch_node_id'] === $currentBranchId;
-                })
-            ) {
-                if ($obj['min_child_node_id'] !== null) {
-                    return $obj['min_child_node_id'];
-                }
-                $currentBranchId = $obj['prev_branch_node_id'];
-            } else {
-                break;
-            }
-        }
-        return null;
-    }
 }

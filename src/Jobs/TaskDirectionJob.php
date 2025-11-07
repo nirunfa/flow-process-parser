@@ -2,6 +2,7 @@
 
 namespace Nirunfa\FlowProcessParser\Jobs;
 
+use Illuminate\Collection\Collection;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -135,8 +136,8 @@ class TaskDirectionJob implements ShouldQueue
     /**
      * 条件节点检查
      * @param NProcessNode $conditionNode
-     * @param array $taskVariables
-     * @param array $instanceVariables
+     * @param Collection $taskVariables
+     * @param Collection $instanceVariables
      * @return boolean|string
      */
     private function conditionNodeCheck($conditionNode,$taskVariables,$instanceVariables){
@@ -212,7 +213,7 @@ class TaskDirectionJob implements ShouldQueue
                 if( ( $taskVariables && $varFind = $taskVariables->first(function($tv) use ($conditionField){
                         return $tv->name === $conditionField;
                     }) )
-                    || ( $instanceVariables &&$varFind = $instanceVariables->first(function($tv) use ($conditionField){
+                    || ( $instanceVariables && $varFind = $instanceVariables->first(function($tv) use ($conditionField){
                         return $tv->name === $conditionField;
                     }) )
                 ){
@@ -288,7 +289,7 @@ class TaskDirectionJob implements ShouldQueue
                 if( ($towards === NProcessNodeAttr::TRUE_DOWN_SKIP && $groupSumFlag)
                 || ($towards === NProcessNodeAttr::FALSE_DOWN_SKIP && !$groupSumFlag) )
                 {
-                     $nextNode = self::nodeCheck($nextNode->nextNode,$taskVariables,$instanceVariables);
+                     $nextNode = self::nodeCheck($nextNode->nextNodes->first(),$taskVariables,$instanceVariables);
                 }
                 return $nextNode;
             }
