@@ -2,6 +2,7 @@
 
 namespace Nirunfa\FlowProcessParser\Traits;
 
+use Nirunfa\FlowProcessParser\Events\TaskDirection\TaskDirectionCompleted;
 use Nirunfa\FlowProcessParser\Models\NProcessInstance;
 use Nirunfa\FlowProcessParser\Models\NProcessTask;
 
@@ -82,6 +83,9 @@ trait CommonTrait
                 'assignee_id' => $orgFirstTaskAssignee->assignee_id,
                 'assignee' => $orgFirstTaskAssignee->assignee,
             ]);
+
+            //这里也触发一次任务走向完成事件，因为退回第一个节点后，需要重新开始流程
+            event(new TaskDirectionCompleted('process_parser_'.$task->id, $task, null, $newFirstTask));
 
             return $newFirstTask;
         }

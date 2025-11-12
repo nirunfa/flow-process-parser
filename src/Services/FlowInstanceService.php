@@ -2,6 +2,7 @@
 
 namespace Nirunfa\FlowProcessParser\Services;
 
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Nirunfa\FlowProcessParser\Models\NProcessDesignVersion;
 use Nirunfa\FlowProcessParser\Models\NProcessInstance;
@@ -332,5 +333,48 @@ class FlowInstanceService
         }
 
         return '参数错误';
+    }
+
+    /**
+     * 退回指定任务
+     * @param string $instanceId
+     * @param string $taskId
+     * @param string $reason
+     * @return bool|string
+     */
+    public static function backToAppointedTask($instanceId,$taskId,$reason = null){
+        $instanceId = str_replace('process_parser_','',$instanceId);
+        $taskId = str_replace('process_parser_','',$taskId);
+        $processInstance = ProcessInstanceRepository::findWithRelations($instanceId);
+        if(empty($processInstance)){
+            return ('流程实例不存在!');
+        }
+
+        // 先将实例中最后的任务设置为完成
+        $lastTask = $processInstance->tasks->last();
+        if(!empty($lastTask)){
+            $lastTask->update([
+                'status'=>NProcessTask::STATUS_COMPLETED,
+            ]);
+        }
+      
+        // 将$taskId 任务克隆新增到最后一个任务(包含相关的关联表数据，如：任务执行人、任务表单数据等)，并设置为待分配
+        $task = NProcessTask::query()->find($taskId);
+        if(empty($task)){
+            return ('回退的流程任务不存在，请检查任务id是否正确!');
+        }
+        $newTask = $task->replicate([
+            'assignees',
+            'form_data',
+            'form_data_id',
+        ]);
+        $newTask->instance_id = $processInstance->id;
+        $newTask->status = NProcessTask::STATUS_UNASSIGNED;
+        $newTask->save();
+
+        // 将$taskId 任务的执行人设置为新任务的执行人
+        $newTask->assignees()->createMany(Arr::except($task->assignees->toArray(),['id','task_id','form_data_id','form_data']));
+
+        return true;
     }
 }
