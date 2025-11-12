@@ -11,7 +11,7 @@ class NCategory extends BaseModel
 
     public function getTable()
     {
-        $table = config('process_parser.db.tables.category','');
+        $table = getParserConfig('process_parser.db.tables.category','');
         if(!empty($table)){
             return $table;
         }

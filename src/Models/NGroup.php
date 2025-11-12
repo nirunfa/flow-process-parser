@@ -11,7 +11,7 @@ class NGroup extends BaseModel
 
     public function getTable()
     {
-        $table = config('process_parser.db.tables.group','');
+        $table = getParserConfig('process_parser.db.tables.group','');
         if(!empty($table)){
             return $table;
         }

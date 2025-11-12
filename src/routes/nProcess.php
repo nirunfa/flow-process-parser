@@ -1,7 +1,6 @@
 <?php
 
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Str;
 
 /*
 |--------------------------------------------------------------------------
@@ -13,15 +12,15 @@ use Illuminate\Support\Str;
 | is assigned the "api" middleware group. Enjoy building your API!
 |
 */
-
 //路由相关配置
-$routeConfig = config("process_parser.route");
+$routeConfig = getParserConfig("process_parser.route");
 
 Route::group(
     [
         "as" => "processParser::",
     ],
     function () {
+
         Route::group(
             [
                 "prefix" => "n_process",

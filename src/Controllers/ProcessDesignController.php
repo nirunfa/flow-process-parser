@@ -133,7 +133,7 @@ class ProcessDesignController extends BaseController
                 $curVerRecord = $versions->firstWhere("ver", $ver);
             }
 
-            $defaultVer = config("process_parser.start_ver", 0) + 1;
+            $defaultVer = getParserConfig("process_parser.start_ver", 0) + 1;
 
             $newVer = $defaultVer;
             if (is_null($curVerRecord)) {
@@ -166,23 +166,24 @@ class ProcessDesignController extends BaseController
             }
 
             if ($res !== false) {
-                $useQueue = config(
+                $useQueue = getParserConfig(
                     "process_parser.json_parser.use_queue",
                     false,
                 );
                 if ($useQueue) {
-                    $queueName = config(
+                    $queueName = getParserConfig(
                         "process_parser.json_parser.queue_name",
                     );
                     if (empty($queueName)) {
                         $queueName = "process_parser";
                     }
-                    $this->dispatch(
-                        createJsonNodeParserJob($design->id, $newVer),
-                    )->onQueue($queueName);
+                    $dispatch = dispatch(
+                        createJsonNodeParserJob($design->id, $newVer)
+                    );
+                    $dispatch->onQueue($queueName)->afterCommit();
                 } else {
                     $this->dispatchSync(
-                        createJsonNodeParserJob($design->id, $newVer),
+                        createJsonNodeParserJob($design->id, $newVer)
                     );
                 }
 

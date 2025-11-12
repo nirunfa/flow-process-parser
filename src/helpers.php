@@ -2,6 +2,7 @@
 
 use Nirunfa\FlowProcessParser\Contracts\JsonNodeParserJobInterface;
 use Nirunfa\FlowProcessParser\Contracts\TaskDirectionJobInterface;
+use Nirunfa\FlowProcessParser\Interfaces\ProcessParserConfigInterface;
 
 if(!function_exists('getCode')){
     function getCode(){
@@ -19,7 +20,7 @@ if(!function_exists('createJsonNodeParserJob')){
      * @return JsonNodeParserJobInterface|\Nirunfa\FlowProcessParser\Jobs\JsonNodeParserJob
      */
     function createJsonNodeParserJob($designId, $ver){
-        $customJob = config('process_parser.json_parser.custom_job');
+        $customJob = getParserConfig('process_parser.json_parser.custom_job');
         if ($customJob && is_string($customJob) && class_exists($customJob)) {
             // 检查是否实现了接口
             $reflection = new \ReflectionClass($customJob);
@@ -42,7 +43,7 @@ if(!function_exists('createTaskDirectionJob')){
      * @return TaskDirectionJobInterface|\Nirunfa\FlowProcessParser\Jobs\TaskDirectionJob
      */
     function createTaskDirectionJob($taskId){
-        $customJob = config('process_parser.json_parser.custom_task_direction_job');
+        $customJob = getParserConfig('process_parser.json_parser.custom_task_direction_job');
         if ($customJob && is_string($customJob) && class_exists($customJob)) {
             // 检查是否实现了接口
             $reflection = new \ReflectionClass($customJob);
@@ -53,5 +54,19 @@ if(!function_exists('createTaskDirectionJob')){
             }
         }
         return new \Nirunfa\FlowProcessParser\Jobs\TaskDirectionJob($taskId);
+    }
+}
+
+
+if(!function_exists('getParserConfig')){
+    /**
+     * 获取流程解析器配置
+     * 
+     * @param mixed $key
+     * @param mixed $default
+     * @return Illuminate\Config\Repository|mixed
+     */
+    function getParserConfig($key,$default = null){
+        return app(ProcessParserConfigInterface::class)->getConfig($key,$default);
     }
 }

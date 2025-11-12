@@ -25,7 +25,7 @@ class NProcessInstance extends BaseModel
 
     public function getTable()
     {
-        $table = config('process_parser.db.tables.instance','');
+        $table = getParserConfig('process_parser.db.tables.instance','');
         if(!empty($table)){
             return $table;
         }

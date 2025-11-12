@@ -3,6 +3,7 @@
 namespace Nirunfa\FlowProcessParser;
 
 use Illuminate\Support\ServiceProvider;
+use Nirunfa\FlowProcessParser\Interfaces\ProcessParserConfigInterface;
 use Nirunfa\FlowProcessParser\Models\NProcessDesign;
 use Nirunfa\FlowProcessParser\Observers\NProcessDesignObserver;
 use Nirunfa\FlowProcessParser\Providers\RouteServiceProvider;
@@ -29,6 +30,8 @@ class FlowProcessParserServiceProvider extends ServiceProvider
         $this->loadMigrationsFrom(__DIR__.'/database/migrations');
 
         $this->observe();
+
+        $this->app->register(RouteServiceProvider::class);
     }
     /**
      * Register the application services.
@@ -37,9 +40,7 @@ class FlowProcessParserServiceProvider extends ServiceProvider
      */
     public function register()
     {
-        $this->app->register(RouteServiceProvider::class);
-
-        $this->app->singleton('process_parser', function ($app) {
+        $this->app->singleton(ProcessParserConfigInterface::class, function ($app): ProcessParserConfigInterface {
             return new ProcessParser($app['config']);
         });
         

@@ -8,6 +8,6 @@ trait MigrationTrait
 
     protected function initConfig()
     {
-        $this->dbPrefix = config('process_parser.db.prefix');
+        $this->dbPrefix = getParserConfig('process_parser.db.prefix');
     }
 }

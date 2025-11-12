@@ -40,7 +40,7 @@ class RouteServiceProvider extends ServiceProvider
         $this->path = __DIR__ . '/../routes';
 
         //路由相关配置
-        $routeConfig = config('process_parser.route');
+        $routeConfig = getParserConfig('process_parser.route');
         $this->moduleNameLower = $routeConfig['prefix'] ?? null;
         if(empty($this->moduleNameLower)) {
             $this->moduleNameLower =  '/api';

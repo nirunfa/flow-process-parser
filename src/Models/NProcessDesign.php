@@ -11,7 +11,7 @@ class NProcessDesign extends BaseModel
 
     public function getTable()
     {
-        $table = config('process_parser.db.tables.design','');
+        $table = getParserConfig('process_parser.db.tables.design','');
         if(!empty($table)){
             return $table;
         }

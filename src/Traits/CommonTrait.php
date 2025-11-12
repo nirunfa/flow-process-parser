@@ -2,7 +2,6 @@
 
 namespace Nirunfa\FlowProcessParser\Traits;
 
-// use Nirunfa\FlowProcessParser\Jobs\TaskDirectionJob; // 使用辅助函数 createTaskDirectionJob 替代
 use Nirunfa\FlowProcessParser\Models\NProcessInstance;
 use Nirunfa\FlowProcessParser\Models\NProcessTask;
 
@@ -15,13 +14,13 @@ trait CommonTrait
     private function startTaskRedirectJob($taskId)
     {
         //开启任务走向job
-        $useQueue = config('process_parser.json_parser.use_queue', false);
+        $useQueue = getParserConfig('process_parser.json_parser.use_queue', false);
         if ($useQueue) {
-            $queueName = config('process_parser.json_parser.queue_name');
+            $queueName = getParserConfig('process_parser.json_parser.queue_name');
             if (empty($queueName)) {
                 $queueName = 'process_parser';
             }
-            dispatch(createTaskDirectionJob($taskId))->onQueue($queueName);
+            dispatch(createTaskDirectionJob($taskId))->onQueue($queueName)->afterCommit();
         } else {
             dispatch_sync(createTaskDirectionJob($taskId));
         }
@@ -86,7 +85,6 @@ trait CommonTrait
 
             return $newFirstTask;
         }
-        return null;
     }
 
     /**

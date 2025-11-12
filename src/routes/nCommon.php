@@ -15,13 +15,14 @@ use Illuminate\Support\Str;
 */
 
 //路由相关配置
-$routeConfig = config("process_parser.route");
+$routeConfig = getParserConfig("process_parser.route");
 
 Route::group(
     [
         "as" => "processParser::",
     ],
     function () {
+
         Route::group(
             [
                 "prefix" => "n_process",

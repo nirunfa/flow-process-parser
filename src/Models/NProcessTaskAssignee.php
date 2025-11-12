@@ -10,7 +10,7 @@ class NProcessTaskAssignee extends BaseModel
 
     public function getTable()
     {
-        $table = config('process_parser.db.tables.task_assignee','');
+        $table = getParserConfig('process_parser.db.tables.task_assignee','');
         if(!empty($table)){
             return $table;
         }
