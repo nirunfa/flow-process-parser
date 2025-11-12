@@ -15,6 +15,16 @@
 实现方式： 管理端 api控制器和 非管理端 Service
 用户信息： 发起人信息、表单输入信息、流程相关操作
 
+该扩展是结合公司业务定制化的一个 [jsonFlow](https://gitee.com/nirunfa/smart-flow-design) 的 json 解析器以及 jsonFlow 流程便利工具
+内置了一些相关的数据表：
+1. 存储 json 及相关的模型表（名称包含Design）
+2. 模型关联的分类表 (category)
+3. 模型关联的分组表 (group)
+4. flow 的 json 解析生成的节点及相关其他（如：表单）表 (node)
+5. flow 流程实例 (instance)
+6. flow 流程任务 (task)
+
+
 流程图：
 ``` mermaid
 graph TD
