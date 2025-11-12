@@ -42,7 +42,7 @@ class NProcessNode extends BaseModel
      */
     public function form(): \Illuminate\Database\Eloquent\Relations\HasOne
     {
-        return $this->hasOne(config('process_parser.models.form',NProcessForm::class), 'id', 'form_id');
+        return $this->hasOne(getParserConfig('process_parser.models.form',NProcessForm::class), 'id', 'form_id');
     }
 
     public function approvers(): \Illuminate\Database\Eloquent\Relations\HasMany

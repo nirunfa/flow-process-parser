@@ -112,8 +112,8 @@ class FlowInstanceService
      * @return mixed
      */
     public static function startProcess($dataParam = []){
-        $taskId = $dataParam['task_id'] ?? null;
-        $instanceId = $dataParam['instance_id'] ?? null;
+        $taskId = str_replace('process_parser_','',$dataParam['task_id'] ?? null);
+        $instanceId = str_replace('process_parser_','',$dataParam['instance_id'] ?? null);
         $formData = $dataParam['form_data'] ?? null;
         $formDataId = $dataParam['form_data_id'] ?? 0;
         return DB::transaction(function () use ($taskId, $instanceId, $formData,$formDataId){
@@ -188,7 +188,7 @@ class FlowInstanceService
      * @return array | string
      */
     public static function promoteProcess($dataParam = []){
-        $taskId = $dataParam['task_id'] ?? null;
+        $taskId = str_replace('process_parser_','',$dataParam['task_id'] ?? null);
         $formData = $dataParam['form_data'] ?? null;
         $formDataId = $dataParam['form_data_id'] ?? 0;
         $promoteDown = $dataParam['promote_down'] ?? true;
@@ -219,6 +219,7 @@ class FlowInstanceService
      * @return array | string
      */
     public static function addProcessVariables($processInstanceId =0,$variableData = []){
+        $processInstanceId = str_replace('process_parser_','',$processInstanceId);
         $processInstance = ProcessInstanceRepository::find($processInstanceId);
         if(empty($processInstance)){
             return ('流程实例不存在!');
@@ -260,6 +261,7 @@ class FlowInstanceService
      * @return array|string
      */
     public static function getProcessInstance($processInstanceId){
+        $processInstanceId = str_replace('process_parser_','',$processInstanceId);
         $processInstance = ProcessInstanceRepository::find($processInstanceId);
         if(empty($processInstance)){
             return '流程实例不存在!';
@@ -288,6 +290,7 @@ class FlowInstanceService
      * @return array|string
      */
     public static function getProcessInstanceVariables($processInstanceId,$name){
+        $processInstanceId = str_replace('process_parser_','',$processInstanceId);
         $processInstance = ProcessInstanceRepository::find($processInstanceId);
         if(empty($processInstance)){
             return '流程实例不存在!';
@@ -307,6 +310,7 @@ class FlowInstanceService
      * @return bool|string
      */
     public static function destroyProcessInstance(int $processInstanceId,string $reason = null){
+        $processInstanceId = str_replace('process_parser_','',$processInstanceId);
         if(!empty($processInstanceId) && $processInstanceId > 0){
             $processInstance = ProcessInstanceRepository::findWithRelations($processInstanceId);
             if(empty($processInstance)){

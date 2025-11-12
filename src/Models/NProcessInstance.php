@@ -44,7 +44,7 @@ class NProcessInstance extends BaseModel
 
     public function applier(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
-        return $this->belongsTo(config('process_parser.models.user',''),'initiator_id');
+        return $this->belongsTo(getParserConfig('process_parser.models.user',''),'initiator_id');
     }
 
     public function variables(): \Illuminate\Database\Eloquent\Relations\HasMany

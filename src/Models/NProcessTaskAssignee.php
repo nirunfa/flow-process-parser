@@ -28,6 +28,6 @@ class NProcessTaskAssignee extends BaseModel
 
     public function assignee(): \Illuminate\Database\Eloquent\Relations\BelongsTo
     {
-        return $this->belongsTo(config('process_parser.models.user',''),'assignee_id');
+        return $this->belongsTo(getParserConfig('process_parser.models.user',''),'assignee_id');
     }
 }

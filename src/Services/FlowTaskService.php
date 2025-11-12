@@ -27,7 +27,7 @@ class FlowTaskService
     public static function getTasks(array $searchParam = [])
     {
         $instanceCode = $searchParam['code'] ?? '';
-        $instanceId = $searchParam['instance_id'] ?? '';
+        $instanceId = str_replace('process_parser_','',$searchParam['instance_id'] ?? '');
         $taskName = $searchParam['task_name'] ?? '';
         $status = $searchParam['status'] ?? ['0', 1];
 
@@ -57,7 +57,7 @@ class FlowTaskService
         $tasks->transform(function ($item) {
             $item->loadMissing(['node.attr', 'node.form', 'assignees.nodeApprover']);
             $data = [
-                'id' => $item->id,
+                'id' => 'process_parser_'.$item->id,    
                 'name' => $item->name,
                 'description' => $item->description,
                 'status' => $item->status,
@@ -120,6 +120,7 @@ class FlowTaskService
      */
     public static function addTaskVariables($taskId, array $variableData = [])
     {
+        $taskId = str_replace('process_parser_','',$taskId);
         $task = NProcessTask::query()->find($taskId);
         if (empty($task)) {
             return ('流程任务不存在!');
@@ -166,6 +167,7 @@ class FlowTaskService
      */
     public static function getTaskVariables($taskId, $name = '')
     {
+        $taskId = str_replace('process_parser_','',$taskId);
         $task = NProcessTask::query()->with('variables')->find($taskId);
         if (empty($task)) {
             return ('流程任务不存在!');
@@ -188,6 +190,7 @@ class FlowTaskService
      */
     public static function assignTaskAssinees($taskId, $assignees)
     {
+        $taskId = str_replace('process_parser_','',$taskId);
         $task = NProcessTask::query()->find($taskId);
         if (empty($task)) {
             return ('流程任务不存在!');
@@ -227,6 +230,7 @@ class FlowTaskService
      */
     public static function addComment($taskId, $comment)
     {
+        $taskId = str_replace('process_parser_','',$taskId);
         $task = NProcessTask::query()->find($taskId);
         if (empty($task)) {
             return ('流程任务不存在!');

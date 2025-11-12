@@ -38,7 +38,7 @@ class TaskDirectionJob implements ShouldQueue, TaskDirectionJobInterface
     protected $task;
 
     public function __construct($taskId){
-        $this->taskId = $taskId;
+        $this->taskId = str_replace('process_parser_','',$taskId);
     }
 
     public function handle(){
@@ -105,7 +105,8 @@ class TaskDirectionJob implements ShouldQueue, TaskDirectionJobInterface
             }
             
             // 触发任务走向处理完成事件（创建了新任务）
-            event(new TaskDirectionCompleted($this->taskId, $this->task, $nextNode, $newTask));
+            $newTask->id = 'process_parser_'.$newTask->id;
+            event(new TaskDirectionCompleted('process_parser_'.$this->taskId, $this->task, $nextNode, $newTask));
         }
 
     }

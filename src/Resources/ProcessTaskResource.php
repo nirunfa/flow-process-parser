@@ -16,7 +16,7 @@ class ProcessTaskResource extends JsonResource
     public function toArray($request)
     {
         return [
-            'id'                => $this->id,
+            'id'                => 'process_parser_'.$this->id,
             'name'              => $this->name,
             'description'       => $this->description,
             'status'            => $this->status,

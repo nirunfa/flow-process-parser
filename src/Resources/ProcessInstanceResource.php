@@ -15,7 +15,7 @@ class ProcessInstanceResource extends JsonResource
     public function toArray($request)
     {
         return [
-            'id'                        => $this->id,
+            'id'                        => 'process_parser_'.$this->id,
             'title'               => $this->title,
             'ver'               => $this->ver,
             'code'               => $this->code,
