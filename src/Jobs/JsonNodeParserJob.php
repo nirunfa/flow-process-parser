@@ -22,6 +22,7 @@ use Nirunfa\FlowProcessParser\Models\NProcessNode;
 use Nirunfa\FlowProcessParser\Models\NProcessNodeApprover;
 use Nirunfa\FlowProcessParser\Models\NProcessNodeAttr;
 use Nirunfa\FlowProcessParser\Models\NProcessNodeCondition;
+use Nirunfa\FlowProcessParser\Repositories\ProcessDesignRepository;
 
 /**
  * 流程设计 Json 节点解析 job
@@ -77,7 +78,7 @@ class JsonNodeParserJob implements ShouldQueue, JsonNodeParserJobInterface
         event(new NodeParsingStarted($this->designId, $this->ver, $orgNodeData));
         
         if ($orgNodeData) {
-            DB::transaction(function () use ($orgNodeData) {
+            DB::transaction(function () use ($orgNodeData,$versionRecord) {
                 //开始之前先清理相关版本的模型节点等数据
                 //清理流程设计版本节点数据
                 $nodes = NProcessNode::query()
@@ -124,6 +125,17 @@ class JsonNodeParserJob implements ShouldQueue, JsonNodeParserJobInterface
                 // 批量更新 null 节点
                 $this->batchUpdateNullNodes($nullNextNodeNodes, $branchNodes);
         
+                //更新版本状态 
+                //1. 先查询当前版本$ver 是否启用
+                //2. 如果禁用，则关闭其他版本，设置$ver版本为启用   
+                $designRecords = ProcessDesignRepository::find($this->designId);    
+                $curVersionRecord = $designRecords->versions()->where('ver',$this->ver)->first();
+                if($curVersionRecord && intval($curVersionRecord->status) === NProcessDesignVersion::STATUS_DISABLE){
+                    $designRecords->each(function($record){
+                        $record->update(['status'=>NProcessDesignVersion::STATUS_DISABLE]);
+                    });
+                    $curVersionRecord->update(['status'=>NProcessDesignVersion::STATUS_ENABLE]);
+                }
             });
             
             // 触发解析完成事件

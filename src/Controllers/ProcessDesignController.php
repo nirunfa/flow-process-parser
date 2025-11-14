@@ -148,14 +148,12 @@ class ProcessDesignController extends BaseController
             } else {
                 if ($isNew) {
                     $newVer = $curVerRecord->addVersion();
-                    //先禁用版本
-                    $design->versions()->update(['status'=>NProcessDesignVersion::STATUS_DISABLE]);
                     $res = $design->versions()->save(
                         new NProcessDesignVersion([
                             "ver" => $newVer,
                             "from_ver" => $curVerRecord->ver,
                             "json_content" => $jsonContent,
-                            'status'=>NProcessDesignVersion::STATUS_ENABLE
+                            'status'=>NProcessDesignVersion::STATUS_DISABLE
                         ]),
                     );
                 } else {
