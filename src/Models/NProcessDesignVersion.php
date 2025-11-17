@@ -16,4 +16,12 @@ class NProcessDesignVersion extends BaseModel
     public function addVersion(){
         return $this->ver + 1;
     }
+
+    /**
+     * 获取版本对应的节点
+     * @return \Illuminate\Database\Eloquent\Relations\HasMany
+     */
+    public function nodes(){
+        return $this->hasMany(NProcessNode::class,'design_id','design_id')->where('ver',$this->ver);
+    }
 }

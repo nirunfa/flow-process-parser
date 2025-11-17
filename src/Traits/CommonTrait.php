@@ -3,7 +3,9 @@
 namespace Nirunfa\FlowProcessParser\Traits;
 
 use Nirunfa\FlowProcessParser\Events\TaskDirection\TaskDirectionCompleted;
+use Nirunfa\FlowProcessParser\Models\NProcessDesignVersion;
 use Nirunfa\FlowProcessParser\Models\NProcessInstance;
+use Nirunfa\FlowProcessParser\Models\NProcessNode;
 use Nirunfa\FlowProcessParser\Models\NProcessTask;
 
 trait CommonTrait
@@ -66,6 +68,10 @@ trait CommonTrait
                 'form_data' => $formData,
             ]);
 
+            //这里需要调整，可能模型有更新，task 的 node_id 需要重新获取
+            $version = $task->instance->design->versions()->where('status',NProcessDesignVersion::STATUS_ENABLE)->first();
+            $firstNode = $version->nodes()->orderBy('id')->first();
+
             //驳回目前只支持驳回到第一个节点
             $firstTask = $task->instance->tasks->first();
             $newFirstTask = $firstTask->replicate([
@@ -74,7 +80,8 @@ trait CommonTrait
                 'deleted_at',
             ]);
             $newFirstTask->fill([
-                'status' => NProcessTask::STATUS_APPROVING
+                'status' => NProcessTask::STATUS_APPROVING,
+                'node_id' => $firstNode->id,
             ]);
             $newFirstTask->save();
 

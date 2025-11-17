@@ -142,25 +142,19 @@ class ProcessDesignController extends BaseController
                         "ver" => $defaultVer,
                         "from_ver" => $defaultVer,
                         "json_content" => $jsonContent,
-                        'status'=>$isNew?NProcessDesignVersion::STATUS_ENABLE:NProcessDesignVersion::STATUS_DISABLE
+                        'status'=>NProcessDesignVersion::STATUS_DISABLE
                     ]),
                 );
             } else {
-                if ($isNew) {
-                    $newVer = $curVerRecord->addVersion();
-                    $res = $design->versions()->save(
-                        new NProcessDesignVersion([
-                            "ver" => $newVer,
-                            "from_ver" => $curVerRecord->ver,
-                            "json_content" => $jsonContent,
-                            'status'=>NProcessDesignVersion::STATUS_DISABLE
-                        ]),
-                    );
-                } else {
-                    $newVer = $curVerRecord->ver;
-                    $curVerRecord->json_content = $jsonContent;
-                    $res = $curVerRecord->save();
-                }
+                $newVer = $curVerRecord->addVersion();
+                $res = $design->versions()->save(
+                    new NProcessDesignVersion([
+                        "ver" => $newVer,
+                        "from_ver" => $curVerRecord->ver,
+                        "json_content" => $jsonContent,
+                        'status'=>NProcessDesignVersion::STATUS_DISABLE
+                    ]),
+                );
             }
 
             if ($res !== false) {
@@ -176,12 +170,12 @@ class ProcessDesignController extends BaseController
                         $queueName = "process_parser";
                     }
                     $dispatch = dispatch(
-                        createJsonNodeParserJob($design->id, $newVer)
+                        createJsonNodeParserJob($design->id, $newVer,$isNew===1)
                     );
                     $dispatch->onQueue($queueName)->afterCommit();
                 } else {
                     $this->dispatchSync(
-                        createJsonNodeParserJob($design->id, $newVer)
+                        createJsonNodeParserJob($design->id, $newVer,$isNew===1)
                     );
                 }
 

@@ -6,7 +6,7 @@ use Nirunfa\FlowProcessParser\Interfaces\ProcessParserConfigInterface;
 
 if(!function_exists('getCode')){
     function getCode(){
-        return 'NF'.date('YmdHis').rand(1000,9999);
+        return 'NF'.date('YmdHis').rand(10000,99999);
     }
 }
 
@@ -17,20 +17,21 @@ if(!function_exists('createJsonNodeParserJob')){
      * 
      * @param int $designId 设计ID
      * @param int $ver 版本号
+     * @param bool $isPublish 是否发布
      * @return JsonNodeParserJobInterface|\Nirunfa\FlowProcessParser\Jobs\JsonNodeParserJob
      */
-    function createJsonNodeParserJob($designId, $ver){
+    function createJsonNodeParserJob($designId, $ver,$isPublish = false){
         $customJob = getParserConfig('process_parser.json_parser.custom_job');
         if ($customJob && is_string($customJob) && class_exists($customJob)) {
             // 检查是否实现了接口
             $reflection = new \ReflectionClass($customJob);
             if ($reflection->implementsInterface(JsonNodeParserJobInterface::class)) {
                 /** @var JsonNodeParserJobInterface $instance */
-                $instance = new $customJob($designId, $ver);
+                $instance = new $customJob($designId, $ver,$isPublish);
                 return $instance;
             }
         }
-        return new \Nirunfa\FlowProcessParser\Jobs\JsonNodeParserJob($designId, $ver);
+        return new \Nirunfa\FlowProcessParser\Jobs\JsonNodeParserJob($designId, $ver,$isPublish);
     }
 }
 

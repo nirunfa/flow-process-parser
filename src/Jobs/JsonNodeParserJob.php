@@ -38,6 +38,7 @@ class JsonNodeParserJob implements ShouldQueue, JsonNodeParserJobInterface
 
     private $designId = 0;
     private $ver = 0;
+    private $isPublish = false;//是否发布，如果发布，则需要更新版本状态； 如果不发布，则判断有没有启用版本，没有则强制启用当前版本;
     
     /**
      * 批量更新 next_node_id 的队列
@@ -56,10 +57,11 @@ class JsonNodeParserJob implements ShouldQueue, JsonNodeParserJobInterface
     private $formCache = [];
 
 
-    public function __construct($designId, $ver)
+    public function __construct($designId, $ver,$isPublish)
     {
         $this->designId = $designId;
         $this->ver = $ver;
+        $this->isPublish = $isPublish;
     }
 
     public function handle()
@@ -126,15 +128,17 @@ class JsonNodeParserJob implements ShouldQueue, JsonNodeParserJobInterface
                 $this->batchUpdateNullNodes($nullNextNodeNodes, $branchNodes);
         
                 //更新版本状态 
-                //1. 先查询当前版本$ver 是否启用
-                //2. 如果禁用，则关闭其他版本，设置$ver版本为启用   
-                $designRecords = ProcessDesignRepository::find($this->designId);    
-                $curVersionRecord = $designRecords->versions()->where('ver',$this->ver)->first();
-                if($curVersionRecord && intval($curVersionRecord->status) === NProcessDesignVersion::STATUS_DISABLE){
-                    $designRecords->each(function($record){
-                        $record->update(['status'=>NProcessDesignVersion::STATUS_DISABLE]);
-                    });
-                    $curVersionRecord->update(['status'=>NProcessDesignVersion::STATUS_ENABLE]);
+                //1. 如果发布，则设置当前版本为启用，其他版本为禁用
+                //2. 如果不发布，则判断模型是否存在启用版本，不存在则设置当前版本为启用，存在则不处理
+                $designRecords = ProcessDesignRepository::find($this->designId);
+                $versionRecords = $designRecords->versions()->get();
+                if($this->isPublish || $versionRecords->where('status',NProcessDesignVersion::STATUS_ENABLE)->isEmpty()){
+                    $curVersionRecord = $versionRecords->firstWhere('ver',$this->ver);
+                    if($curVersionRecord && intval($curVersionRecord->status) === NProcessDesignVersion::STATUS_DISABLE){
+                        $designRecords->versions()->where('status',NProcessDesignVersion::STATUS_ENABLE)
+                                    ->update(['status'=>NProcessDesignVersion::STATUS_DISABLE]);
+                        $curVersionRecord->update(['status'=>NProcessDesignVersion::STATUS_ENABLE]);
+                    }
                 }
             });
             

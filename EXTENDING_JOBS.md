@@ -166,11 +166,13 @@ class FullyCustomJsonNodeParserJob implements JsonNodeParserJobInterface
 {
     private $designId;
     private $ver;
+    private $isPublish;
     
-    public function __construct($designId, $ver)
+    public function __construct($designId, $ver,$isPublish)
     {
         $this->designId = $designId;
         $this->ver = $ver;
+        $this->isPublish = $isPublish;
     }
     
     public function handle()
