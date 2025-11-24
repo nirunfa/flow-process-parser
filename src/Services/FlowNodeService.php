@@ -4,6 +4,7 @@ namespace Nirunfa\FlowProcessParser\Services;
 
 use Illuminate\Support\Arr;
 use Illuminate\Support\Str;
+use Nirunfa\FlowProcessParser\Models\NProcessConfig;
 use Nirunfa\FlowProcessParser\Models\NProcessForm;
 use Nirunfa\FlowProcessParser\Models\NProcessNode;
 use Nirunfa\FlowProcessParser\Models\NProcessNodeAttr;
@@ -39,6 +40,7 @@ class FlowNodeService
             $attr = $nextNode["attr"] ?? []; //额外属性
             $approverList = $nextNode["approverGroups"] ?? []; //审批人｜处理人集合
             $formDesignData = $nextNode["formDesignData"] ?? null;
+            $configures = $nextNode["configure"] ?? []; //配置
 
             $curNode = new NProcessNode([
                 "id" => str_replace('-', '&', $nextNode["id"]),
@@ -92,6 +94,19 @@ class FlowNodeService
                         'approver_type' => $approverItem["approverType"] ?? null,
                         'order' => $approverItem["sort"],
                     ];
+                }
+                if(isset($configures)){
+                    $task['configs'] = [];
+                    foreach ($configures as $group => $groupConfigures) {
+                        foreach ($groupConfigures as $key => $configure) {
+                            $task['configs'][] = [
+                                'name' => $key,
+                                'value' => $configure,
+                                'description' => NProcessConfig::CONFIG_VARS[$key] ?? null,
+                                'group' => $group,
+                            ];
+                        }
+                    }
                 }
                 $tasks[] = $task;
 
@@ -193,7 +208,8 @@ class FlowNodeService
                     $conditionVal = trim($conditionVals[1] ?? '');
                 }else if(intval($conditionType) === NProcessNodeAttr::RULE){
                     //选择非公式的逻辑判断
-                    $optType = $groupCondition['optType'];
+                    $optType = $condition['optType'];
+                    $conditionField = $condition['columnValue'] ?? '';
                     $conditionValueType = intval($condition['valueType']);
                     if($conditionValueType === NProcessNodeCondition::VALUE_TYPE_CONSTANT){
                         if($conditionVal === '假' || $conditionVal === '真'){

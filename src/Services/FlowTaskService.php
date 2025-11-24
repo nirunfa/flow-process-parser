@@ -35,7 +35,7 @@ class FlowTaskService
             return ['code'=>400,'message'=>'流程单号或流程ID 不能都为空!'];
         }
 
-        $query = NProcessTask::query()->with(['assignees', 'node']);
+        $query = NProcessTask::query()->with(['assignees', 'node','node.configs']);
         if (!empty($instanceCode)) {
             $query->whereHas('instance', function ($q) use ($instanceCode) {
                 $q->where('code', 'like', '%' . $instanceCode . '%');
@@ -90,7 +90,7 @@ class FlowTaskService
                 'assignee_mode' => $item->node->attr->approve_mode ?? null,
                 'initiator_same' => $item->node->attr->approver_same_initiator ?? null,
                 'approver_empty' => $item->node->attr->approver_empty ?? null,
-
+                'configs' => isset($item->node->configs) ? $item->node->configs->toArray() : [],
                 'created_at' => $item->created_at,
                 'updated_at' => $item->updated_at,
                 'deleted_at' => $item->deleted_at

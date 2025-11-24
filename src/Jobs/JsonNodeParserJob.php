@@ -16,6 +16,7 @@ use Nirunfa\FlowProcessParser\Events\NodeParsing\NodeParsingCompleted;
 use Nirunfa\FlowProcessParser\Events\NodeParsing\NodeCreating;
 use Nirunfa\FlowProcessParser\Events\NodeParsing\NodeCreated;
 use Nirunfa\FlowProcessParser\Events\NodeParsing\RelationDataSaving;
+use Nirunfa\FlowProcessParser\Models\NProcessConfig;
 use Nirunfa\FlowProcessParser\Models\NProcessDesignVersion;
 use Nirunfa\FlowProcessParser\Models\NProcessForm;
 use Nirunfa\FlowProcessParser\Models\NProcessNode;
@@ -171,7 +172,7 @@ class JsonNodeParserJob implements ShouldQueue, JsonNodeParserJobInterface
         $attr = $orgNodeData["attr"] ?? []; //额外属性
         $approverList = $orgNodeData["approverGroups"] ?? []; //审批人｜处理人集合
         $conditionList = $orgNodeData["conditionGroup"] ?? []; //条件
-        $configures = $orgNodeData["configure"] ?? [];
+        $configures = $orgNodeData["configure"] ?? []; //配置
 
         //保存的数据
         $nodeAttr = [];
@@ -319,6 +320,25 @@ class JsonNodeParserJob implements ShouldQueue, JsonNodeParserJobInterface
         // 优化路径拼接：直接拼接，避免重复替换
         $path = empty($path) ? (string)$processNode->id : $path . '>' . $processNode->id;
 
+        //保存配置
+        if (!empty($configures)) {
+            $configData = [];
+            foreach ($configures as $group => $groupConfigures) {
+                foreach ($groupConfigures as $key => $configure) {
+                    $configData[] = [
+                        'name' => $key,
+                        'value' => $configure,
+                        'description' => NProcessConfig::CONFIG_VARS[$key] ?? null,
+                        'group' => $group,
+                    ];
+                }
+            }
+            $this->relationDataQueue[] = [
+                'type' => 'config',
+                'node_id' => $processNode->id,
+                'data' => $configData,
+            ];
+        }
         // 延迟保存关联数据，批量处理
         if (!empty($nodeAttr)) {
             $this->relationDataQueue[] = [
@@ -375,6 +395,7 @@ class JsonNodeParserJob implements ShouldQueue, JsonNodeParserJobInterface
         $attrData = [];
         $conditionData = [];
         $approverData = [];
+        $configData = [];
         
         // 定义允许的 attr 字段（按表结构，排除 timestamps）
         $allowedAttrFields = [
@@ -394,7 +415,7 @@ class JsonNodeParserJob implements ShouldQueue, JsonNodeParserJobInterface
             switch ($item['type']) {
                 case 'attr':
                     // 只保留允许的字段
-                    $filteredData = ['node_id' => $nodeId];
+                    $filteredData = ['node_id' => $nodeId,'created_at'=>now()];
                     foreach ($allowedAttrFields as $field) {
                         if (isset($data[$field])) {
                             $filteredData[$field] = $data[$field];
@@ -407,7 +428,7 @@ class JsonNodeParserJob implements ShouldQueue, JsonNodeParserJobInterface
                         // 获取模型的原始属性（排除 timestamps 和 id）
                         $attributes = $condition->getAttributes();
                         unset($attributes['id'], $attributes['created_at'], $attributes['updated_at'], $attributes['node_id']);
-                        $conditionData[] = array_merge($attributes, ['node_id' => $nodeId]);
+                        $conditionData[] = array_merge($attributes, ['node_id' => $nodeId,'created_at'=>now()]);
                     }
                     break;
                 case 'approvers':
@@ -415,7 +436,20 @@ class JsonNodeParserJob implements ShouldQueue, JsonNodeParserJobInterface
                         // 获取模型的原始属性（排除 timestamps 和 id）
                         $attributes = $approver->getAttributes();
                         unset($attributes['id'], $attributes['created_at'], $attributes['updated_at'], $attributes['node_id']);
-                        $approverData[] = array_merge($attributes, ['node_id' => $nodeId]);
+                        $approverData[] = array_merge($attributes, ['node_id' => $nodeId,'created_at'=>now()]);
+                    }
+                    break;
+                case 'config':
+                    foreach ($data as $config) {
+                        $configData[] = [
+                            'name' => $config['name'],
+                            'value' => $config['value'],
+                            'description' => $config['description'],
+                            'group' => $config['group'],
+                            'node_id' => $nodeId,
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ];
                     }
                     break;
             }
@@ -433,6 +467,7 @@ class JsonNodeParserJob implements ShouldQueue, JsonNodeParserJobInterface
                 'approver_same_initiator',
                 'approver_same_prev',
                 'approver_empty',
+                'created_at'
             ];
             
             // 标准化所有行，确保字段顺序和数量一致
@@ -453,7 +488,9 @@ class JsonNodeParserJob implements ShouldQueue, JsonNodeParserJobInterface
         if (!empty($approverData)) {
             DB::table((new NProcessNodeApprover())->getTable())->insert($approverData);
         }
-        
+        if (!empty($configData)) {
+            DB::table((new NProcessConfig())->getTable())->insert($configData);
+        }
         // 清空队列
         $this->relationDataQueue = [];
     }
